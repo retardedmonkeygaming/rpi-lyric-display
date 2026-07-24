@@ -72,3 +72,10 @@ def update_lyrics(song_id: int):
         )
 
     return jsonify({"status": "success", "song_id": song_id})
+@web_bp.route("/api/songs/<int:song_id>/delete", methods=["POST"])
+def delete_song(song_id: int):
+    """API Endpoint to delete a song and its associated lyrics."""
+    with db.get_connection() as conn:
+        conn.execute("DELETE FROM songs WHERE id = ?", (song_id,))
+        # Foreign key CASCADE handles deleting lyrics and tags automatically
+    return jsonify({"status": "success", "deleted_id": song_id})
