@@ -160,7 +160,7 @@ class LyricSyncApp:
         self._start_idle_display_loop()
 
         print("=== LyricPulse 1602 Online ===")
-        print(f"Web Dashboard: http://{rpi4.local}:{FLASK_PORT}")
+        print(f"Web Dashboard: http://{self.local_ip}:{FLASK_PORT}")
 
         try:
             while True:
