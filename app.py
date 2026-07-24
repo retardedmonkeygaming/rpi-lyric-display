@@ -21,10 +21,11 @@ class LyricSyncApp:
         self.selected_index = 0
         self.stop_playback = False
 
-        # Touch Input Handler Setup (GPIO 27)
+        # Touch Input Handler Setup (GPIO 27) with Triple Tap Support
         self.touch = TouchInputHandler(
             on_short_press=self._handle_short_press,
             on_double_tap=self._handle_double_tap,
+            on_triple_tap=self._handle_triple_tap,
             on_long_press=self._handle_long_press,
         )
 
@@ -57,6 +58,13 @@ class LyricSyncApp:
             )
             playback_thread.daemon = True
             playback_thread.start()
+
+    def _handle_triple_tap(self):
+        """Triple Tap: Instantly Stop Active Playback."""
+        if self.state == "PLAYING":
+            self.stop_playback = True
+            self.state = "IDLE"
+            self.lcd.display_lines("PLAYBACK STOPPED", "READY FOR SYNC")
 
     def _handle_long_press(self):
         """Long Press: Cancel Playback / Return to Idle Screen."""
