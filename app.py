@@ -6,13 +6,12 @@ from config import FLASK_HOST, FLASK_PORT
 from database.db import DatabaseManager
 from core.lcd_engine import LCDEngine
 from core.touch_input import TouchInputHandler
+from core.plugin_loader import PluginLoader
 from web.routes import web_bp
 
 current_app_instance = None
 
-
 def get_local_ip() -> str:
-    """Retrieves the Raspberry Pi's local IP address on Wi-Fi / Ethernet."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -22,22 +21,19 @@ def get_local_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
-
 class LyricSyncApp:
-    """LyricPulse 1602 Main Service Application."""
-
     def __init__(self):
         global current_app_instance
         current_app_instance = self
 
         self.db = DatabaseManager()
         self.lcd = LCDEngine()
+        self.plugins = PluginLoader().load_plugins()
 
-        self.state = "IDLE"  # Modes: IDLE, MENU, PLAYING
+        self.state = "IDLE"
         self.songs_list = []
         self.selected_index = 0
         self.stop_playback = False
-
         self.local_ip = get_local_ip()
 
         self.touch = TouchInputHandler(
@@ -56,7 +52,6 @@ class LyricSyncApp:
             self.songs_list = self.db.get_all_songs()
             self.selected_index = 0
             self._update_menu_display()
-
         elif self.state == "MENU":
             if self.songs_list:
                 self.selected_index = (self.selected_index + 1) % len(self.songs_list)
@@ -64,24 +59,16 @@ class LyricSyncApp:
 
     def _handle_double_tap(self):
         if self.state == "MENU" and self.songs_list:
-            self.state = "PLAYING"
             selected_song = self.songs_list[self.selected_index]
-
-            playback_thread = threading.Thread(
-                target=self._start_song_playback, args=(selected_song["id"],)
-            )
-            playback_thread.daemon = True
-            playback_thread.start()
+            self.trigger_recording_mode(selected_song["id"], countdown_sec=3)
 
     def _handle_triple_tap(self):
-        """Triple Tap: Stop active lyric playback immediately."""
         if self.state == "PLAYING":
             self.stop_playback = True
             self.state = "IDLE"
             self.lcd.clear()
 
     def _handle_long_press(self):
-        """Long Press: Reset state to IDLE."""
         if self.state in ["MENU", "PLAYING"]:
             self.stop_playback = True
             self.state = "IDLE"
@@ -91,9 +78,32 @@ class LyricSyncApp:
         if not self.songs_list:
             self.lcd.display_lines("NO SONGS FOUND", "UPLOAD VIA WEB")
             return
-
         song = self.songs_list[self.selected_index]
         self.lcd.display_menu_item(song["title"], song["artist"])
+
+    def trigger_recording_mode(self, song_id: int, countdown_sec: int = 3):
+        """Executes a visual 3-second countdown lock before starting timed playback."""
+        if self.state != "PLAYING":
+            self.state = "PLAYING"
+            
+            def recording_thread():
+                self.lcd.clear()
+                for count in range(countdown_sec, 0, -1):
+                    self.lcd.display_lines("RECORDING IN...", f"      {count}      ")
+                    time.sleep(1.0)
+                
+                self.lcd.display_lines("  RECORDING!  ", "    ACTION    ")
+                time.sleep(0.8)
+                
+                start_time = time.time()
+                self._start_song_playback(song_id)
+                duration = round(time.time() - start_time, 2)
+                
+                status = "STOPPED" if self.stop_playback else "COMPLETED"
+                self.db.log_session(song_id, duration, status)
+
+            t = threading.Thread(target=recording_thread, daemon=True)
+            t.start()
 
     def _start_song_playback(self, song_id: int):
         lyrics = self.db.get_song_lyrics(song_id)
@@ -114,18 +124,7 @@ class LyricSyncApp:
         if not self.stop_playback:
             self.state = "IDLE"
 
-    def trigger_remote_playback(self, song_id: int):
-        """Allows external HTTP endpoints to trigger timed playback runs."""
-        if self.state != "PLAYING":
-            self.state = "PLAYING"
-            playback_thread = threading.Thread(
-                target=self._start_song_playback, args=(song_id,)
-            )
-            playback_thread.daemon = True
-            playback_thread.start()
-
     def _start_idle_display_loop(self):
-        """Background thread cycling idle LCD info every 5 seconds."""
         def idle_loop():
             page = 0
             while True:
@@ -135,12 +134,10 @@ class LyricSyncApp:
                     else:
                         ip_line = f"{self.local_ip}:{FLASK_PORT}"
                         self.lcd.display_lines("WEB UI ACCESS", ip_line)
-
                     page = (page + 1) % 2
                 time.sleep(5)
 
-        thread = threading.Thread(target=idle_loop, daemon=True)
-        thread.start()
+        threading.Thread(target=idle_loop, daemon=True).start()
 
     def run(self):
         self.touch.start_listening()
@@ -153,10 +150,7 @@ class LyricSyncApp:
         server_thread.daemon = True
         server_thread.start()
 
-        # Startup Animation
         self.lcd.play_boot_animation()
-
-        # Start 5-Second Cycling Idle Display Loop
         self._start_idle_display_loop()
 
         print("=== LyricPulse 1602 Online ===")
@@ -166,10 +160,8 @@ class LyricSyncApp:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\nShutting down service...")
             self.touch.cleanup()
             self.lcd.clear()
-
 
 if __name__ == "__main__":
     app = LyricSyncApp()

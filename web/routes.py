@@ -174,3 +174,63 @@ def index():
 def library_page():
     songs = db.get_all_songs()
     return render_template("library.html", songs=songs)
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from database.db import DatabaseManager
+from core.sentiment import SentimentScorer
+from core.line_splitter import LineSplitter
+
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+@web_bp.route("/")
+def index():
+    return redirect(url_for("web.library_page"))
+
+@web_bp.route("/library")
+def library_page():
+    songs = db.get_all_songs()
+    return render_template("library.html", songs=songs)
+
+@web_bp.route("/editor/<int:song_id>")
+def editor_page(song_id: int):
+    song = db.get_song_by_id(song_id)
+    lyrics = db.get_song_lyrics(song_id)
+    return render_template("editor.html", song=song, lyrics=lyrics)
+
+# --- SEARCH & FILTER ROUTE ---
+@web_bp.route("/api/songs/search", methods=["GET"])
+def search_songs():
+    query = request.args.get("q", "").strip().lower()
+    tag = request.args.get("tag", "").strip().lower()
+    songs = db.get_all_songs()
+
+    filtered = []
+    for s in songs:
+        matches_q = not query or (query in s["title"].lower() or query in s["artist"].lower())
+        matches_tag = not tag or (tag in s.get("tags", "").lower())
+        if matches_q and matches_tag:
+            filtered.append(s)
+
+    return jsonify({"status": "success", "songs": filtered})
+
+# --- SMART LINE SPLIT ROUTE ---
+@web_bp.route("/api/utils/split-text", methods=["POST"])
+def split_text_utility():
+    data = request.get_json(silent=True) or {}
+    raw_text = data.get("text", "")
+    line1, line2 = LineSplitter.split_text(raw_text)
+    return jsonify({"status": "success", "line1": line1, "line2": line2})
+
+# --- PREPARE FOR RECORDING ROUTE ---
+@web_bp.route("/api/recording/start", methods=["POST"])
+def start_recording_mode():
+    data = request.get_json(silent=True) or {}
+    song_id = data.get("song_id")
+    countdown = data.get("countdown_sec", 3)
+
+    from app import current_app_instance
+    if current_app_instance:
+        current_app_instance.trigger_recording_mode(song_id, countdown_sec=countdown)
+        return jsonify({"status": "success", "recording_song_id": song_id, "countdown": countdown})
+
+    return jsonify({"status": "error", "message": "App engine offline"}), 500

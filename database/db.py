@@ -110,3 +110,27 @@ class DatabaseManager:
         except Exception as e:
             print(f"Backup failed: {e}")
             return False
+        import os
+import shutil
+import time
+
+# Add these methods to DatabaseManager inside database/db.py:
+
+def create_backup(self, backup_dir: str = "backups") -> str:
+    """Creates a timestamped snapshot of the SQLite database file."""
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(backup_dir, f"lyricpulse_backup_{timestamp}.db")
+    shutil.copy2(self.db_path, backup_path)
+    return backup_path
+
+def log_session(self, song_id: int, duration_sec: float, status: str = "COMPLETED"):
+    """Records recording session telemetry for Meta Edits reference."""
+    with self.get_connection() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS session_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, song_id INTEGER, timestamp TEXT, duration_sec REAL, status TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO session_logs (song_id, timestamp, duration_sec, status) VALUES (?, ?, ?, ?)",
+            (song_id, time.strftime("%Y-%m-%d %H:%M:%S"), duration_sec, status)
+        )
