@@ -2,7 +2,7 @@ import time
 import board
 import digitalio
 import adafruit_character_lcd.character_lcd as character_lcd
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Callable
 from config import LCD_PINS
 
 
