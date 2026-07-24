@@ -9,7 +9,6 @@ class DatabaseManager:
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
-        # Ensure parent folder exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.init_db()
 
@@ -45,7 +44,6 @@ class DatabaseManager:
             )
             song_id = cursor.lastrowid
 
-            # Insert lyric timestamps
             lyric_entries = [
                 (song_id, timestamp, line1, line2)
                 for timestamp, line1, line2 in lyrics
@@ -55,7 +53,6 @@ class DatabaseManager:
                 lyric_entries
             )
 
-            # Insert tags
             if tags:
                 tag_entries = [(song_id, tag.strip().lower()) for tag in tags if tag.strip()]
                 cursor.executemany(
@@ -65,7 +62,7 @@ class DatabaseManager:
 
             return song_id
 
-    def get_all_songs() -> List[Dict]:
+    def get_all_songs(self) -> List[Dict]:
         """Returns all songs ordered by title."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -106,29 +103,10 @@ class DatabaseManager:
             )
 
     def backup_database(self, destination_path: str) -> bool:
-        """Backs up the SQLite database file to a destination path (e.g. USB drive)."""
+        """Backs up the SQLite database file to a destination path."""
         try:
             shutil.copy2(self.db_path, destination_path)
             return True
         except Exception as e:
             print(f"Backup failed: {e}")
             return False
-
-
-if __name__ == "__main__":
-    # Test DB initialization and basic record creation
-    db = DatabaseManager("data/test_lyrics.db")
-    
-    test_lyrics = [
-        (11.15, "BABYDOLL", "DOMINIC FIKE"),
-        (13.52, "I can't move on,", "babydoll")
-    ]
-    song_id = db.add_song("Babydoll", "Dominic Fike", test_lyrics, duration=95.0, tags=["pop", "reel"])
-    
-    songs = db.get_all_songs()
-    print(f"Stored Songs: {songs}")
-    lyrics = db.get_song_lyrics(song_id)
-    print(f"Fetched Lyrics: {lyrics}")
-    
-    # Cleanup test db
-    os.remove("data/test_lyrics.db")
