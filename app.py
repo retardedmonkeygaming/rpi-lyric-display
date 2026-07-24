@@ -8,6 +8,26 @@ from core.touch_input import TouchInputHandler
 from web.routes import web_bp
 
 
+# At the top of app.py
+current_app_instance = None
+
+class LyricSyncApp:
+    def __init__(self):
+        global current_app_instance
+        current_app_instance = self
+        
+        # [Existing initialization logic stays the same...]
+
+    def trigger_remote_playback(self, song_id: int):
+        """Allows external HTTP endpoints to trigger timed playback runs."""
+        if self.state != "PLAYING":
+            self.state = "PLAYING"
+            playback_thread = threading.Thread(
+                target=self._start_song_playback, args=(song_id,)
+            )
+            playback_thread.daemon = True
+            playback_thread.start()
+        
 class LyricSyncApp:
     """LyricPulse Main Service Application."""
 

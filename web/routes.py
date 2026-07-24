@@ -95,3 +95,61 @@ def nudge_song_lyrics(song_id: int):
         return jsonify({"status": "success", "song_id": song_id, "shifted_by": offset_sec})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+    from flask import Blueprint, render_template, request, jsonify
+from database.db import DatabaseManager
+from core.sentiment import SentimentScorer
+
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+# --- REMOTE TRIGGER ENDPOINT ---
+@web_bp.route("/api/remote/play", methods=["POST"])
+def remote_play_trigger():
+    """HTTP Remote Trigger for hands-free recording initiation."""
+    data = request.get_json(silent=True) or {}
+    song_id = data.get("song_id")
+    
+    if not song_id:
+        return jsonify({"status": "error", "message": "Missing song_id"}), 400
+
+    # Signals the active running app process to launch the song timeline
+    from app import current_app_instance
+    if current_app_instance:
+        current_app_instance.trigger_remote_playback(song_id)
+        return jsonify({"status": "success", "playing_song_id": song_id})
+    
+    return jsonify({"status": "error", "message": "App engine offline"}), 500
+
+# --- SENTIMENT SCORING ROUTE ---
+@web_bp.route("/api/songs/<int:song_id>/analyze-sentiment", methods=["GET"])
+def analyze_song_sentiment(song_id: int):
+    lyrics = db.get_song_lyrics(song_id)
+    full_text = " ".join([f"{l1} {l2}" for _, l1, l2 in lyrics])
+    mood, confidence = SentimentScorer.analyze_text(full_text)
+    return jsonify({"status": "success", "suggested_mood": mood, "confidence": confidence})
+
+# --- INDIVIDUAL TIMESTAMP EDIT ROUTE ---
+@web_bp.route("/api/lyrics/<int:song_id>/update-line", methods=["POST"])
+def update_lyric_line(song_id: int):
+    data = request.get_json(silent=True) or {}
+    line_index = data.get("index")
+    new_timestamp = data.get("timestamp_sec")
+    new_line1 = data.get("line1", "")[:16]
+    new_line2 = data.get("line2", "")[:16]
+
+    lyrics = db.get_song_lyrics(song_id)
+    if line_index is None or line_index >= len(lyrics):
+        return jsonify({"status": "error", "message": "Invalid line index"}), 400
+
+    # Re-insert modified line into timeline
+    lyrics[line_index] = (float(new_timestamp), new_line1, new_line2)
+    
+    with db.get_connection() as conn:
+        conn.execute("DELETE FROM song_lyrics WHERE song_id = ?", (song_id,))
+        entries = [(song_id, ts, l1, l2) for ts, l1, l2 in lyrics]
+        conn.executemany(
+            "INSERT INTO song_lyrics (song_id, timestamp_sec, line1, line2) VALUES (?, ?, ?, ?)",
+            entries
+        )
+
+    return jsonify({"status": "success", "updated_index": line_index})
