@@ -4,7 +4,13 @@ from core.lrc_parser import LRCParser
 
 web_bp = Blueprint("web", __name__)
 db = DatabaseManager()
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 
+# Add this right after web_bp = Blueprint("web", __name__)
+@web_bp.route("/")
+def index():
+    """Redirect root traffic directly to the main library dashboard."""
+    return redirect(url_for("web.library_page"))
 @web_bp.route("/")
 def index():
     """Main Dashboard & Live Status View."""
