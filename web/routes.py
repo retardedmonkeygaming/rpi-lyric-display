@@ -82,13 +82,16 @@ def delete_song(song_id: int):
 @web_bp.route("/api/songs/<int:song_id>/nudge", methods=["POST"])
 def nudge_song_lyrics(song_id: int):
     """Shifts all timestamps for a song by offset_ms (+ or -)."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     offset_ms = data.get("offset_ms", 0)
-    offset_sec = offset_ms / 1000.0
+    offset_sec = float(offset_ms) / 1000.0
 
-    with db.get_connection() as conn:
-        conn.execute(
-            "UPDATE song_lyrics SET timestamp_sec = MAX(0.0, timestamp_sec + ?) WHERE song_id = ?",
-            (offset_sec, song_id)
-        )
-    return jsonify({"status": "success", "song_id": song_id, "shifted_by": offset_sec})
+    try:
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE song_lyrics SET timestamp_sec = MAX(0.0, timestamp_sec + ?) WHERE song_id = ?",
+                (offset_sec, song_id)
+            )
+        return jsonify({"status": "success", "song_id": song_id, "shifted_by": offset_sec})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500

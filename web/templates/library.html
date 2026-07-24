@@ -3,44 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Song Library</title>
+    <title>LyricPulse — Library</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .card { background: #1e1e1e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-        input, button { padding: 10px; margin-top: 5px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
-        button { background: #00adb5; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        .delete-btn { background: #e63946; padding: 6px 12px; font-size: 0.85rem; width: auto; margin: 0; }
-        ul { list-style: none; padding: 0; }
-        li { padding: 12px 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-        .actions { display: flex; gap: 12px; align-items: center; }
-        a { color: #00adb5; text-decoration: none; font-weight: bold; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #06b6d4; --danger: #ef4444; --text: #f8fafc; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; }
+        .container { max-width: 850px; margin: 0 auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid #334155; padding-bottom: 16px; }
+        h1 { margin: 0; font-size: 1.8rem; color: var(--accent); letter-spacing: -0.5px; }
+        .card { background: var(--card); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        .card h2 { margin-top: 0; font-size: 1.2rem; color: #94a3b8; margin-bottom: 16px; }
+        input, select, button { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; }
+        input:focus { border-color: var(--accent); outline: none; }
+        button.btn-primary { background: var(--accent); color: #000; font-weight: bold; border: none; cursor: pointer; transition: opacity 0.2s; }
+        button.btn-primary:hover { opacity: 0.9; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { background: #0f172a; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1e293b; }
+        .song-title { font-weight: 600; font-size: 1rem; color: #f1f5f9; }
+        .song-artist { font-size: 0.85rem; color: #64748b; margin-left: 6px; }
+        .actions { display: flex; gap: 8px; align-items: center; }
+        .btn-edit { background: #334155; color: var(--accent); padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .btn-delete { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0; }
+        .btn-delete:hover { background: var(--danger); color: white; }
     </style>
 </head>
 <body>
     <div class="container">
-        <p><a href="/">← Back to Dashboard</a></p>
-        
+        <div class="header">
+            <h1>⚡ LyricPulse</h1>
+            <span style="color: #64748b; font-size: 0.9rem;">1602A Display Manager</span>
+        </div>
+
         <div class="card">
-            <h2>Upload New Song (.lrc)</h2>
+            <h2>Upload Track (.lrc)</h2>
             <form action="/upload" method="post" enctype="multipart/form-data">
                 <input type="text" name="title" placeholder="Song Title" required>
-                <input type="text" name="artist" placeholder="Artist" required>
-                <input type="text" name="tags" placeholder="Tags (e.g. reel, dark, synth)">
+                <input type="text" name="artist" placeholder="Artist Name" required>
+                <input type="text" name="tags" placeholder="Tags (e.g., night, dark, reel)">
                 <input type="file" name="lrc_file" accept=".lrc,.txt,text/plain,*/*" required>
-                <button type="submit">Upload & Format</button>
+                <button type="submit" class="btn-primary">Upload & Format Track</button>
             </form>
         </div>
 
         <div class="card">
-            <h2>Library Songs</h2>
+            <h2>Track Library</h2>
             <ul id="song-list">
                 {% for song in songs %}
                 <li id="song-row-{{ song.id }}">
-                    <span><strong>{{ song.title }}</strong> - {{ song.artist }}</span>
+                    <div>
+                        <span class="song-title">{{ song.title }}</span>
+                        <span class="song-artist">— {{ song.artist }}</span>
+                    </div>
                     <div class="actions">
-                        <a href="/editor/{{ song.id }}">Edit</a>
-                        <button class="delete-btn" data-song-id="{{ song.id }}">Delete</button>
+                        <a href="/editor/{{ song.id }}" class="btn-edit">Edit / Nudge</a>
+                        <button class="btn-delete" data-song-id="{{ song.id }}">Delete</button>
                     </div>
                 </li>
                 {% endfor %}
@@ -50,20 +65,17 @@
 
     <script>
         document.getElementById('song-list').addEventListener('click', async function(e) {
-            if (!e.target.classList.contains('delete-btn')) return;
+            if (!e.target.classList.contains('btn-delete')) return;
 
             const songId = e.target.getAttribute('data-song-id');
-            if (!confirm('Are you sure you want to delete this song?')) return;
+            if (!confirm('Delete this track from library?')) return;
 
-            const res = await fetch(`/api/songs/${songId}/delete`, {
-                method: 'POST'
-            });
-
+            const res = await fetch(`/api/songs/${songId}/delete`, { method: 'POST' });
             if (res.ok) {
                 const row = document.getElementById(`song-row-${songId}`);
                 if (row) row.remove();
             } else {
-                alert('Failed to delete song.');
+                alert('Failed to delete track.');
             }
         });
     </script>
