@@ -1,0 +1,5 @@
+Flask==3.0.2
+Adafruit-Blinka==8.42.0
+adafruit-circuitpython-charlcd==3.4.18
+RPi.GPIO==0.7.1
+pydantic==2.6.1

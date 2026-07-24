@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Lyrics - {{ song.title }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .lyric-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        input { padding: 8px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; }
+        .ts-input { width: 90px; }
+        .line-input { width: 220px; font-family: monospace; }
+        button { background: #00adb5; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p><a href="/library">← Back to Library</a></p>
+        <h2>Editing Timestamps: {{ song.title }} - {{ song.artist }}</h2>
+        
+        <div id="lyrics-list">
+            {% for lyric in lyrics %}
+            <div class="lyric-row">
+                <input type="number" step="0.01" class="ts-input" value="{{ lyric[0] }}">
+                <input type="text" maxlength="16" class="line-input" value="{{ lyric[1] }}">
+                <input type="text" maxlength="16" class="line-input" value="{{ lyric[2] }}">
+            </div>
+            {% endfor %}
+        </div>
+
+        <button id="save-btn" data-song-id="{{ song.id }}">Save Changes</button>
+    </div>
+
+    <script>
+        document.getElementById('save-btn').addEventListener('click', async function() {
+            const songId = this.getAttribute('data-song-id');
+            const rows = document.querySelectorAll('.lyric-row');
+            const data = [];
+            
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                data.push({
+                    timestamp: parseFloat(inputs[0].value),
+                    line1: inputs[1].value,
+                    line2: inputs[2].value
+                });
+            });
+
+            const res = await fetch(`/api/songs/${songId}/lyrics`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lyrics: data })
+            });
+
+            if (res.ok) {
+                alert('Timestamps updated successfully!');
+            }
+        });
+    </script>
+</body>
+</html>

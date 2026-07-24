@@ -1,0 +1,134 @@
+import sqlite3
+import os
+import shutil
+from typing import List, Tuple, Dict, Optional
+from config import DB_PATH
+
+class DatabaseManager:
+    """Handles all SQLite database operations for songs, lyrics, and metadata."""
+
+    def __init__(self, db_path: str = DB_PATH):
+        self.db_path = db_path
+        # Ensure parent folder exists
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        self.init_db()
+
+    def get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def init_db(self):
+        """Initializes database schema from schema.sql."""
+        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+        if os.path.exists(schema_path):
+            with open(schema_path, "r") as f:
+                schema_sql = f.read()
+            with self.get_connection() as conn:
+                conn.executescript(schema_sql)
+
+    def add_song(
+        self,
+        title: str,
+        artist: str,
+        lyrics: List[Tuple[float, str, str]],
+        duration: float = 0.0,
+        lrc_path: str = "",
+        tags: Optional[List[str]] = None
+    ) -> int:
+        """Inserts a new song with its parsed lyrics and optional tags."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO songs (title, artist, duration, lrc_path) VALUES (?, ?, ?, ?)",
+                (title, artist, duration, lrc_path)
+            )
+            song_id = cursor.lastrowid
+
+            # Insert lyric timestamps
+            lyric_entries = [
+                (song_id, timestamp, line1, line2)
+                for timestamp, line1, line2 in lyrics
+            ]
+            cursor.executemany(
+                "INSERT INTO song_lyrics (song_id, timestamp_sec, line1, line2) VALUES (?, ?, ?, ?)",
+                lyric_entries
+            )
+
+            # Insert tags
+            if tags:
+                tag_entries = [(song_id, tag.strip().lower()) for tag in tags if tag.strip()]
+                cursor.executemany(
+                    "INSERT INTO song_tags (song_id, tag_name) VALUES (?, ?)",
+                    tag_entries
+                )
+
+            return song_id
+
+    def get_all_songs() -> List[Dict]:
+        """Returns all songs ordered by title."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, title, artist, duration, play_count, last_used FROM songs ORDER BY title ASC"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def search_songs(self, query: str) -> List[Dict]:
+        """Search songs by title or artist."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            search_pattern = f"%{query}%"
+            cursor.execute(
+                "SELECT id, title, artist, duration FROM songs "
+                "WHERE title LIKE ? OR artist LIKE ? ORDER BY title ASC",
+                (search_pattern, search_pattern)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_song_lyrics(self, song_id: int) -> List[Tuple[float, str, str]]:
+        """Fetches all timed lyric blocks for a song ordered by timestamp."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT timestamp_sec, line1, line2 FROM song_lyrics "
+                "WHERE song_id = ? ORDER BY timestamp_sec ASC",
+                (song_id,)
+            )
+            return [(row["timestamp_sec"], row["line1"], row["line2"]) for row in cursor.fetchall()]
+
+    def increment_play_count(self, song_id: int):
+        """Updates play count and last_used timestamp when played."""
+        with self.get_connection() as conn:
+            conn.execute(
+                "UPDATE songs SET play_count = play_count + 1, last_used = CURRENT_TIMESTAMP WHERE id = ?",
+                (song_id,)
+            )
+
+    def backup_database(self, destination_path: str) -> bool:
+        """Backs up the SQLite database file to a destination path (e.g. USB drive)."""
+        try:
+            shutil.copy2(self.db_path, destination_path)
+            return True
+        except Exception as e:
+            print(f"Backup failed: {e}")
+            return False
+
+
+if __name__ == "__main__":
+    # Test DB initialization and basic record creation
+    db = DatabaseManager("data/test_lyrics.db")
+    
+    test_lyrics = [
+        (11.15, "BABYDOLL", "DOMINIC FIKE"),
+        (13.52, "I can't move on,", "babydoll")
+    ]
+    song_id = db.add_song("Babydoll", "Dominic Fike", test_lyrics, duration=95.0, tags=["pop", "reel"])
+    
+    songs = db.get_all_songs()
+    print(f"Stored Songs: {songs}")
+    lyrics = db.get_song_lyrics(song_id)
+    print(f"Fetched Lyrics: {lyrics}")
+    
+    # Cleanup test db
+    os.remove("data/test_lyrics.db")

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song Library</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #1e1e1e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        input, button { padding: 10px; margin-top: 5px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
+        button { background: #00adb5; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+        a { color: #00adb5; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p><a href="/">← Back to Dashboard</a></p>
+        
+        <div class="card">
+            <h2>Upload New Song (.lrc)</h2>
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <input type="text" name="title" placeholder="Song Title" required>
+                <input type="text" name="artist" placeholder="Artist" required>
+                <input type="text" name="tags" placeholder="Tags (e.g. reel, dark, synth)">
+                <input type="file" name="lrc_file" accept=".lrc,.txt" required>
+                <button type="submit">Upload & Format</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Library Songs</h2>
+            <ul>
+                {% for song in songs %}
+                <li>
+                    <span><strong>{{ song.title }}</strong> - {{ song.artist }}</span>
+                    <a href="/editor/{{ song.id }}">Edit Timestamps</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

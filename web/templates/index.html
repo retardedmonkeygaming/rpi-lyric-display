@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPi Lyric Sync Engine</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        nav { margin-bottom: 20px; display: flex; gap: 15px; }
+        nav a { color: #00adb5; text-decoration: none; font-weight: bold; }
+        .card { background: #1e1e1e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .lcd-preview { background: #102a10; color: #33ff33; font-family: monospace; font-size: 1.5rem; padding: 15px; border-radius: 4px; border: 2px solid #222; text-align: center; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>1602A Lyric Sync Engine</h1>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/library">Library & Upload</a>
+        </nav>
+
+        <div class="card">
+            <h2>Live 1602 Display Feed</h2>
+            <div class="lcd-preview" id="lcd-display">READY FOR SYNC
+SELECT A TRACK</div>
+        </div>
+    </div>
+</body>
+</html>
