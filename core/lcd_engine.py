@@ -1,5 +1,4 @@
 import time
-import board
 import digitalio
 import adafruit_character_lcd.character_lcd as character_lcd
 from typing import List, Tuple, Optional, Callable
@@ -7,9 +6,8 @@ from config import LCD_PINS
 
 
 class LCDEngine:
-    """Manages 1602A LCD rendering, timing synchronization, and custom character icons."""
+    """Manages 1602A LCD rendering, timing synchronization, custom icons, and animations."""
 
-    # 5x8 Custom Character Byte Maps (Max 8 slots on HD44780/1602A)
     CUSTOM_CHARS = {
         "music_note": [0x04, 0x06, 0x05, 0x05, 0x04, 0x1C, 0x1C, 0x00],
         "heart":      [0x00, 0x0A, 0x1F, 0x1F, 0x0E, 0x04, 0x00, 0x00],
@@ -22,7 +20,6 @@ class LCDEngine:
     }
 
     def __init__(self):
-        # Configure Digital I/O Pins
         self.lcd_rs = digitalio.DigitalInOut(LCD_PINS["rs"])
         self.lcd_en = digitalio.DigitalInOut(LCD_PINS["en"])
         self.lcd_d4 = digitalio.DigitalInOut(LCD_PINS["d4"])
@@ -33,7 +30,6 @@ class LCDEngine:
         self.cols = LCD_PINS["cols"]
         self.rows = LCD_PINS["rows"]
 
-        # Initialize Character LCD Driver
         self.lcd = character_lcd.Character_LCD_Mono(
             self.lcd_rs,
             self.lcd_en,
@@ -49,59 +45,64 @@ class LCDEngine:
         self.clear()
 
     def _load_custom_characters(self):
-        """Loads custom byte-array icons into the 1602A CGRAM memory (slots 0-7)."""
+        """Loads custom byte-array icons into CGRAM (slots 0-7)."""
         for index, (name, char_bytes) in enumerate(self.CUSTOM_CHARS.items()):
             if index < 8:
                 self.lcd.create_char(index, char_bytes)
 
     def clear(self):
-        """Clears the LCD screen."""
+        """Forces a hard clear of both lines with blank padding to prevent visual artifacts."""
+        self.lcd.message = "                \n                "
         self.lcd.clear()
 
     def display_lines(self, line1: str, line2: str = ""):
-        """Pads and displays two lines of text (16 chars max per line)."""
+        """Pads lines strictly to 16 characters to overwrite residual text."""
         formatted_line1 = line1[:16].ljust(16)
         formatted_line2 = line2[:16].ljust(16)
         self.lcd.message = f"{formatted_line1}\n{formatted_line2}"
 
     def display_menu_item(self, title: str, subtitle: str = ""):
-        """Helper to format menu titles on the screen."""
-        line1 = f"\x04 {title[:14]}"  # \x04 displays the 'play' icon
+        """Helper to format menu titles with play icon (\x04)."""
+        line1 = f"\x04 {title[:14]}"
         line2 = f"  {subtitle[:14]}" if subtitle else ""
         self.display_lines(line1, line2)
+
+    def play_boot_animation(self):
+        """Displays startup branding animation with dynamic loading bar."""
+        self.clear()
+        self.display_lines("\x00 LyricPulse", "  Booting Up...")
+        time.sleep(1.2)
+
+        loading_bar = ""
+        for _ in range(16):
+            loading_bar += "█"
+            self.display_lines("\x00 LyricPulse", loading_bar)
+            time.sleep(0.08)
+
+        time.sleep(0.5)
+        self.clear()
 
     def play_synced_lyrics(
         self,
         lyrics: List[Tuple[float, str, str]],
         stop_check_callback: Optional[Callable[[], bool]] = None,
     ):
-        """
-        Executes a high-precision wall-clock sync loop for displaying lyrics.
-        `lyrics` format: [(timestamp_sec, line1, line2), ...]
-        """
+        """Executes wall-clock sync loop with instant stop polling."""
         self.clear()
         start_time = time.time()
 
         for target_time, line1, line2 in lyrics:
-            # Wait precisely until current playback reaches the timestamp
             while (time.time() - start_time) < target_time:
                 if stop_check_callback and stop_check_callback():
                     self.clear()
                     return
-                time.sleep(0.005)  # 5ms polling for tight sync
+                time.sleep(0.005)
+
+            if stop_check_callback and stop_check_callback():
+                self.clear()
+                return
 
             self.display_lines(line1, line2)
 
-        time.sleep(2)
+        time.sleep(1.5)
         self.clear()
-
-
-if __name__ == "__main__":
-    # Module test block
-    print("Testing LCD Engine... Press Ctrl+C to stop.")
-    engine = LCDEngine()
-    
-    # Test message with custom icon (\x00 = music note, \x01 = heart)
-    engine.display_lines("\x00 BABYDOLL \x01", "DOMINIC FIKE")
-    time.sleep(3)
-    engine.clear()
