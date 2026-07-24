@@ -12,7 +12,7 @@ current_app_instance = None
 
 
 def get_local_ip() -> str:
-    """Helper to retrieve the Raspberry Pi's active local Wi-Fi / Ethernet IP."""
+    """Retrieves the Raspberry Pi's local IP address on Wi-Fi / Ethernet."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -79,7 +79,6 @@ class LyricSyncApp:
             self.stop_playback = True
             self.state = "IDLE"
             self.lcd.clear()
-            self.lcd.display_lines("PLAYBACK STOPPED", "READY FOR SYNC")
 
     def _handle_long_press(self):
         """Long Press: Reset state to IDLE."""
@@ -134,7 +133,6 @@ class LyricSyncApp:
                     if page == 0:
                         self.lcd.display_lines("READY FOR SYNC", "SELECT A TRACK")
                     else:
-                        # Page 2: Show IP + Port (e.g. "192.168.1.50:5000")
                         ip_line = f"{self.local_ip}:{FLASK_PORT}"
                         self.lcd.display_lines("WEB UI ACCESS", ip_line)
 
@@ -162,7 +160,7 @@ class LyricSyncApp:
         self._start_idle_display_loop()
 
         print("=== LyricPulse 1602 Online ===")
-        print(f"Web Dashboard: http://{self.local_ip}:{FLASK_PORT}")
+        print(f"Web Dashboard: http://{rpi4.local}:{FLASK_PORT}")
 
         try:
             while True:

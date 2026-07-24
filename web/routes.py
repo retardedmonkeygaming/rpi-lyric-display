@@ -159,3 +159,18 @@ def update_lyric_line(song_id: int):
         )
 
     return jsonify({"status": "success", "updated_index": line_index})
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from database.db import DatabaseManager
+
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+@web_bp.route("/")
+def index():
+    """Redirect root access directly to the main library dashboard."""
+    return redirect(url_for("web.library_page"))
+
+@web_bp.route("/library")
+def library_page():
+    songs = db.get_all_songs()
+    return render_template("library.html", songs=songs)
