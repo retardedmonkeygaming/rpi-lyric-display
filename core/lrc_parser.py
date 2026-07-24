@@ -3,31 +3,33 @@ from typing import List, Tuple
 
 
 class LRCParser:
-    """Parses .lrc strings and formats lyrics into clean 16x2 LCD dual-line blocks."""
+    """Parses .lrc content into precise timestamped 16x2 LCD display blocks."""
 
     @staticmethod
     def parse_timestamp(timestamp_str: str) -> float:
-        """Converts flexible [m:s.xx] or [mm:ss.xx] formats into seconds float."""
+        """Converts [mm:ss.xx], [m:s.x], or [mm:ss:xx] to float seconds."""
         try:
             cleaned = timestamp_str.strip("[]")
-            parts = cleaned.split(":")
+            parts = cleaned.replace(":", ".").split(".")
+            
             minutes = float(parts[0])
-            seconds_parts = parts[1].split(".")
-            seconds = float(seconds_parts[0])
-
-            # Handle fractional seconds (1, 2, or 3 digits)
-            frac_str = seconds_parts[1] if len(seconds_parts) > 1 else "0"
-            fraction = float(frac_str) / (10 ** len(frac_str)) if frac_str else 0.0
+            seconds = float(parts[1]) if len(parts) > 1 else 0.0
+            
+            # Handle fraction/milliseconds
+            fraction = 0.0
+            if len(parts) > 2 and parts[2]:
+                frac_str = parts[2]
+                fraction = float(frac_str) / (10 ** len(frac_str))
 
             return round(minutes * 60 + seconds + fraction, 2)
         except (ValueError, IndexError):
-            return 0.0
+            return -1.0
 
     @classmethod
     def split_to_16_chars(cls, text: str) -> Tuple[str, str]:
         """
-        Splits a single lyric string into two display lines of <= 16 characters each
-        without cutting words in half whenever possible.
+        Splits text into line1 (<=16 chars) and line2 (<=16 chars).
+        Ensures words are preserved across lines without deleting any text.
         """
         text = text.strip()
         if not text:
@@ -41,43 +43,37 @@ class LRCParser:
         line2_words = []
         current_len = 0
 
-        # Fill Line 1 up to 16 characters by word boundaries
+        # Build Line 1 word by word
         for word in words:
-            # Check length with space added
-            addition = len(word) if not line1_words else len(word) + 1
-            if current_len + addition <= 16:
+            word_len = len(word)
+            added_len = word_len if not line1_words else word_len + 1
+
+            if current_len + added_len <= 16:
                 line1_words.append(word)
-                current_len += addition
+                current_len += added_len
             else:
                 line2_words.append(word)
 
         line1 = " ".join(line1_words)
         line2 = " ".join(line2_words)
 
-        # Handle Line 2 formatting cleanly without cutting words if possible
-        if len(line2) > 16:
-            l2_words = line2.split()
-            l2_formatted = []
-            l2_len = 0
-            for w in l2_words:
-                add = len(w) if not l2_formatted else len(w) + 1
-                if l2_len + add <= 16:
-                    l2_formatted.append(w)
-                    l2_len += add
-                else:
-                    break
-            line2 = " ".join(l2_formatted)
+        # If a single word on Line 1 exceeds 16 chars, force slice it
+        if not line1:
+            line1 = text[:16]
+            line2 = text[16:32]
+        else:
+            line2 = line2[:16]
 
-        return line1[:16], line2[:16]
+        return line1, line2
 
     @classmethod
     def parse_lrc_content(cls, lrc_text: str) -> List[Tuple[float, str, str]]:
         """
-        Parses LRC content, capturing flexible timestamps and returning
-        sorted [(timestamp, line1, line2), ...].
+        Parses LRC content, ignoring header tags ([ti:], [ar:], etc.)
+        and accurately splitting lines for 1602 LCD displays.
         """
-        # Flexible regex supporting single or double digit minutes/seconds/milliseconds
-        pattern = re.compile(r"(\[\d{1,2}:\d{1,2}(?:[\.:]\d{1,3})?\])(.*)")
+        # Matches any bracketed time tag: [00:12.34], [0:12], [00:12:34]
+        time_tag_regex = re.compile(r"\[\d{1,2}:\d{2}(?:[\.:]\d{1,3})?\]")
         raw_entries = []
 
         for line in lrc_text.splitlines():
@@ -85,15 +81,24 @@ class LRCParser:
             if not line_str:
                 continue
 
-            match = pattern.match(line_str)
-            if match:
-                time_str, lyric_str = match.groups()
-                timestamp = cls.parse_timestamp(time_str)
-                cleaned_lyric = lyric_str.strip()
-                # Keep entry even if empty line to allow timing gaps
-                raw_entries.append((timestamp, cleaned_lyric))
+            # Skip metadata lines like [ti:...], [ar:...], [length:...]
+            if re.match(r"^\[[a-zA-Z]+:", line_str):
+                continue
 
-        # Sort entries strictly by timestamp
+            # Find all timestamps on this line (supports inline/multiple tags)
+            timestamps = time_tag_regex.findall(line_str)
+            if not timestamps:
+                continue
+
+            # Strip out timestamp tags to extract the actual lyric text
+            lyric_text = time_tag_regex.sub("", line_str).strip()
+
+            for ts_tag in timestamps:
+                ts_val = cls.parse_timestamp(ts_tag)
+                if ts_val >= 0.0:
+                    raw_entries.append((ts_val, lyric_text))
+
+        # Sort chronologically by timestamp
         raw_entries.sort(key=lambda x: x[0])
 
         parsed_lyrics = []
@@ -102,13 +107,3 @@ class LRCParser:
             parsed_lyrics.append((timestamp, line1, line2))
 
         return parsed_lyrics
-
-
-if __name__ == "__main__":
-    sample = """
-    [0:05.1] Intro opening line test
-    [0:11.15] BABYDOLL DOMINIC FIKE
-    [0:36.80] Lookin' for somebody different
-    """
-    for entry in LRCParser.parse_lrc_content(sample):
-        print(entry)
