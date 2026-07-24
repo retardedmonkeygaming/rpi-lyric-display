@@ -28,19 +28,44 @@ class TouchInputHandler:
         self._press_start_time = 0.0
         self._is_pressed = False
 
-        # Initialize RPi.GPIO
+        # Disable warnings and clean up previous pin states
+        GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
+        
+        try:
+            GPIO.cleanup(self.pin)
+        except Exception:
+            pass
+
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     def start_listening(self):
         """Attaches GPIO interrupt handler for button state changes."""
-        GPIO.add_event_detect(
-            self.pin, GPIO.BOTH, callback=self._gpio_callback, bouncetime=50
-        )
+        try:
+            # Clean up existing event detects on this pin if any
+            GPIO.remove_event_detect(self.pin)
+        except Exception:
+            pass
+
+        try:
+            GPIO.add_event_detect(
+                self.pin, GPIO.BOTH, callback=self._gpio_callback, bouncetime=50
+            )
+        except RuntimeError:
+            print(f"[WARNING] Edge detection failed on GPIO {self.pin}. Resetting pin...")
+            GPIO.cleanup(self.pin)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            GPIO.add_event_detect(
+                self.pin, GPIO.BOTH, callback=self._gpio_callback, bouncetime=50
+            )
 
     def stop_listening(self):
         """Removes GPIO interrupt handlers."""
-        GPIO.remove_event_detect(self.pin)
+        try:
+            GPIO.remove_event_detect(self.pin)
+        except Exception:
+            pass
 
     def _gpio_callback(self, channel: int):
         current_state = GPIO.input(self.pin)
@@ -65,10 +90,9 @@ class TouchInputHandler:
                 if (now - self._last_press_time) < 0.35:
                     if self.on_double_tap:
                         self.on_double_tap()
-                    self._last_press_time = 0.0  # Reset double tap timer
+                    self._last_press_time = 0.0
                 else:
                     self._last_press_time = now
-                    # Delay slightly to confirm it wasn't a double tap
                     time.sleep(0.35)
                     if (time.time() - self._last_press_time) >= 0.35:
                         if self.on_short_press:
@@ -77,11 +101,13 @@ class TouchInputHandler:
     def cleanup(self):
         """Safely cleans up GPIO pin configuration."""
         self.stop_listening()
-        GPIO.cleanup(self.pin)
+        try:
+            GPIO.cleanup(self.pin)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    # Self-test block for physical Pi testing
     print("Testing Touch Sensor on GPIO 27... Press Ctrl+C to stop.")
 
     def on_short():
