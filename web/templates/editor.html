@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricPulse — Advanced Editor</title>
+    <title>LyricPulse — Advanced Editor: {{ song.title }}</title>
     <style>
         :root { --bg: #090d16; --card: #151c2c; --accent: #06b6d4; --lcd-bg: #051a05; --lcd-text: #00ff66; --text: #f8fafc; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px; margin: 0; }
@@ -15,8 +15,9 @@
         .lcd-line { height: 22px; font-size: 1.2rem; font-weight: bold; letter-spacing: 3px; white-space: pre; }
         
         .timeline-row { display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 10px; align-items: center; margin-bottom: 8px; background: #0f172a; padding: 8px; border-radius: 6px; }
-        input { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 6px; border-radius: 4px; }
-        .btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        input { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 6px; border-radius: 4px; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+        .btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
         .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
     </style>
 </head>
@@ -30,30 +31,102 @@
                 <div class="lcd-line" id="sim-line1">READY FOR SYNC  </div>
                 <div class="lcd-line" id="sim-line2">LYRICPULSE 1602 </div>
             </div>
-            <button class="btn btn-outline" onclick="triggerRemoteRecord()">⏺ Prepare Remote Recording</button>
+            <div style="display:flex; justify-content:center; gap:10px;">
+                <button class="btn" onclick="startSimulatedPlayback()">▶ Start Live Preview</button>
+                <button class="btn btn-outline" onclick="triggerRemoteRecord()">⏺ Prepare Remote Recording</button>
+            </div>
         </div>
 
-        <div class="card">
+        <div class="card" style="text-align: center;">
             <h3 style="margin-top:0; color:#94a3b8;">Lyric Sentiment Analyzer</h3>
-            <p id="sentiment-status">Click to analyze full LRC sentiment profile...</p>
-            <button class="btn" onclick="runSentimentAnalysis()">Analyze Lyric Mood</button>
+            <p id="sentiment-status" style="color:#94a3b8; font-size:0.9rem;">Click to analyze full LRC sentiment profile...</p>
+            <button class="btn btn-outline" onclick="runSentimentAnalysis()">Analyze Lyric Mood</button>
         </div>
 
         <div class="card">
-            <h3 style="margin-top:0; color:#94a3b8;">Lyric Line Timeline & Formatting</h3>
-            <div id="timeline-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0; color:#94a3b8;">Lyric Line Timeline & Formatting</h3>
+                <div>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(-200)">-200ms All</button>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(200)">+200ms All</button>
                 </div>
+            </div>
+            
+            <div id="timeline-container">
+                {% for line in lyrics %}
+                <div class="timeline-row" id="row-{{ loop.index0 }}">
+                    <input type="number" step="0.1" value="{{ '%.2f'|format(line[0]) }}" id="ts-{{ loop.index0 }}">
+                    <input type="text" maxlength="16" value="{{ line[1] }}" id="l1-{{ loop.index0 }}">
+                    <input type="text" maxlength="16" value="{{ line[2] }}" id="l2-{{ loop.index0 }}">
+                    <button class="btn" style="font-size:0.75rem; padding:6px;" onclick="saveLine({{ loop.index0 }})">Save</button>
+                </div>
+                {% else %}
+                <p style="color:#64748b; text-align:center;">No timeline data available for this track.</p>
+                {% endfor %}
+            </div>
         </div>
+    </div>
+
+    <div id="lyrics-store" style="display: none;">
+        {% for line in lyrics %}
+        <div class="lyric-item" data-ts="{{ line[0] }}" data-l1="{{ line[1] }}" data-l2="{{ line[2] }}"></div>
+        {% endfor %}
     </div>
 
     <script>
         const songId = window.location.pathname.split('/').pop();
+        
+        // Parse lyrics safely from the HTML DOM layout (completely avoids VS Code JS-linter errors)
+        const rawLyricsData = [];
+        document.querySelectorAll('.lyric-item').forEach(el => {
+            rawLyricsData.push([
+                parseFloat(el.getAttribute('data-ts')),
+                el.getAttribute('data-l1'),
+                el.getAttribute('data-l2')
+            ]);
+        });
+
+        let previewTimer = null;
 
         function updateSimulator(l1, l2) {
-            document.getElementById('sim-line1').innerText = (l1 || '').padEnd(16, ' ').slice(0,16);
-            document.getElementById('sim-line2').innerText = (l2 || '').padEnd(16, ' ').slice(0,16);
+            document.getElementById('sim-line1').innerText = (l1 || '').padEnd(16, ' ').slice(0, 16);
+            document.getElementById('sim-line2').innerText = (l2 || '').padEnd(16, ' ').slice(0, 16);
         }
 
+        // 1. Simulator Playback Engine
+        function startSimulatedPlayback() {
+            if (rawLyricsData.length === 0) {
+                alert('No lyrics found to preview.');
+                return;
+            }
+            if (previewTimer) clearInterval(previewTimer);
+
+            let startTime = Date.now();
+            updateSimulator("  PLAYING...  ", "                ");
+
+            previewTimer = setInterval(() => {
+                let elapsed = (Date.now() - startTime) / 1000;
+                let activeLine = null;
+
+                for (let i = 0; i < rawLyricsData.length; i++) {
+                    if (elapsed >= rawLyricsData[i][0]) {
+                        activeLine = rawLyricsData[i];
+                    }
+                }
+
+                if (activeLine) {
+                    updateSimulator(activeLine[1], activeLine[2]);
+                }
+
+                let lastTimestamp = rawLyricsData[rawLyricsData.length - 1][0];
+                if (elapsed > lastTimestamp + 3) {
+                    clearInterval(previewTimer);
+                    updateSimulator("    COMPLETE    ", "   READY AGAIN  ");
+                }
+            }, 100);
+        }
+
+        // 2. Sentiment Analyzer Trigger
         async function runSentimentAnalysis() {
             const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
             const data = await res.json();
@@ -63,13 +136,50 @@
             }
         }
 
+        // 3. Remote Hardware Recording Trigger
         async function triggerRemoteRecord() {
             const res = await fetch('/api/remote/play', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ song_id: parseInt(songId) })
+                body: JSON.stringify({ song_id: parseInt(songId), countdown_sec: 3 })
             });
-            if (res.ok) alert('Remote playback triggered on Raspberry Pi!');
+            const data = await res.json();
+            if (res.ok) {
+                alert('⏺ 1602 LCD Recording Countdown triggered successfully!');
+            } else {
+                alert('Error starting recording: ' + (data.message || 'Engine offline'));
+            }
+        }
+
+        // 4. Line Formatting & Persistence
+        async function saveLine(idx) {
+            const ts = parseFloat(document.getElementById(`ts-${idx}`).value);
+            const line1 = document.getElementById(`l1-${idx}`).value;
+            const line2 = document.getElementById(`l2-${idx}`).value;
+
+            const res = await fetch(`/api/lyrics/${songId}/update-line`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: idx, timestamp_sec: ts, line1: line1, line2: line2 })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Failed to update line.');
+            }
+        }
+
+        // 5. Global Timestamp Shift/Nudge
+        async function nudgeTimestamps(ms) {
+            const res = await fetch(`/api/songs/${songId}/nudge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ offset_ms: ms })
+            });
+            if (res.ok) {
+                location.reload();
+            }
         }
     </script>
 </body>

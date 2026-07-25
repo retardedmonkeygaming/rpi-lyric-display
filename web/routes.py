@@ -203,3 +203,11 @@ def analyze_song_sentiment(song_id: int):
     full_text = " ".join([f"{l1} {l2}" for _, l1, l2 in lyrics])
     mood, confidence = SentimentScorer.analyze_text(full_text)
     return jsonify({"status": "success", "suggested_mood": mood, "confidence": confidence})
+from flask import jsonify
+
+@bp.route('/api/songs/<int:song_id>/lyrics-json')
+def get_song_lyrics_json(song_id):
+    lyrics = db.get_song_lyrics(song_id)  # Adjust based on your DB function
+    # Format each line as [timestamp, line1, line2]
+    formatted = [[line[0], line[1], line[2]] for line in lyrics]
+    return jsonify({'status': 'success', 'lyrics': formatted})
