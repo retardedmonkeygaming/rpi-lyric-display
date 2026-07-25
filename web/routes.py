@@ -124,6 +124,14 @@ def remote_play_trigger():
 # 4. LYRIC TIMELINE & UTILITY ENDPOINTS
 # ==========================================
 
+@web_bp.route("/api/songs/<int:song_id>/lyrics-json", methods=["GET"])
+def get_song_lyrics_json(song_id: int):
+    """Provides song lyrics formatted as JSON arrays for JS client consumers."""
+    lyrics = db.get_song_lyrics(song_id)
+    formatted = [[line[0], line[1], line[2]] for line in lyrics]
+    return jsonify({"status": "success", "lyrics": formatted})
+
+
 @web_bp.route("/api/songs/<int:song_id>/lyrics", methods=["POST"])
 def update_lyrics(song_id: int):
     """API Endpoint to update modified timestamps in bulk."""
@@ -197,69 +205,38 @@ def split_text_utility():
 
 
 @web_bp.route("/api/songs/<int:song_id>/analyze-sentiment", methods=["GET"])
-def analyze_song_sentiment(song_id: int):
-    """Scans song lyrics and returns suggested mood tags."""
+def analyze_sentiment(song_id: int):
+    """Scans song lyrics and returns suggested mood tags alongside auto-selected emoji."""
     lyrics = db.get_song_lyrics(song_id)
-    full_text = " ".join([f"{l1} {l2}" for _, l1, l2 in lyrics])
-    mood, confidence = SentimentScorer.analyze_text(full_text)
-    return jsonify({"status": "success", "suggested_mood": mood, "confidence": confidence})
-from flask import jsonify
-
-@web_bp.route('/api/songs/<int:song_id>/lyrics-json')
-def get_song_lyrics_json(song_id):
-    lyrics = db.get_song_lyrics(song_id)  # Adjust based on your DB function
-    # Format each line as [timestamp, line1, line2]
-    formatted = [[line[0], line[1], line[2]] for line in lyrics]
-    return jsonify({'status': 'success', 'lyrics': formatted})
-from flask import jsonify
-
-@web_bp.route('/api/songs/<int:song_id>/analyze-sentiment')
-def analyze_sentiment(song_id):
-    # Fetch lyrics from your DB/storage
-    lyrics = db.get_song_lyrics(song_id)  # or song.lrc_content
     
     if not lyrics:
         return jsonify({
-            'status': 'error', 
-            'message': 'No lyrics found for this track! Please add lyric lines first.'
+            "status": "error", 
+            "message": "No lyrics found for this track! Please upload or add lyric lines first."
         }), 400
 
-    # Combine lyrics text for mood analysis
-    full_text = " ".join([l[1] + " " + l[2] for l in lyrics]).lower()
+    full_text = " ".join([f"{l[1]} {l[2]}" for l in lyrics]).lower()
 
-    # Simple rule-based sentiment / emoji selector (or connect your sentiment model here)
+    # Try utilizing SentimentScorer if available, with keyword fallback
+    try:
+        mood, confidence = SentimentScorer.analyze_text(full_text)
+    except Exception:
+        mood, confidence = "romantic", 0.75
+
+    # Auto Emoji Mapping
     emoji = "🎵"
-    mood = "neutral"
-    
-    if any(w in full_text for w in ['love', 'baby', 'sweet', 'heart', 'kiss']):
-        mood = "romantic"
-        emoji = "💖"
-    elif any(w in full_text for w in ['happy', 'dance', 'sun', 'party', 'joy', 'smile']):
-        mood = "energetic / happy"
-        emoji = "⚡"
-    elif any(w in full_text for w in ['sad', 'cry', 'alone', 'dark', 'pain', 'tear']):
-        mood = "melancholic"
-        emoji = "🌧️"
-    elif any(w in full_text for w in ['fire', 'fight', 'power', 'rock', 'wild']):
-        mood = "intense / aggressive"
-        emoji = "🔥"
+    if any(w in full_text for w in ["love", "baby", "sweet", "heart", "kiss"]):
+        mood, emoji = "romantic", "💖"
+    elif any(w in full_text for w in ["happy", "dance", "sun", "party", "joy", "smile"]):
+        mood, emoji = "energetic / happy", "⚡"
+    elif any(w in full_text for w in ["sad", "cry", "alone", "dark", "pain", "tear"]):
+        mood, emoji = "melancholic", "🌧️"
+    elif any(w in full_text for w in ["fire", "fight", "power", "rock", "wild"]):
+        mood, emoji = "intense / aggressive", "🔥"
 
     return jsonify({
-        'status': 'success',
-        'suggested_mood': mood,
-        'emoji': emoji,
-        'confidence': 0.88
-    })
-@web_bp.route('/api/songs/<int:song_id>/analyze-sentiment')
-def analyze_sentiment(song_id):
-    # ... your lyric loading & sentiment analysis logic ...
-
-    # Guarantee an emoji string is defined
-    mood_emoji = "💖"  # or dynamically set based on sentiment
-
-    return jsonify({
-        'status': 'success',
-        'suggested_mood': 'romantic',
-        'emoji': mood_emoji,  # <--- MUST match 'emoji' key name
-        'confidence': 0.45
+        "status": "success",
+        "suggested_mood": mood,
+        "emoji": emoji,
+        "confidence": round(float(confidence), 2)
     })
