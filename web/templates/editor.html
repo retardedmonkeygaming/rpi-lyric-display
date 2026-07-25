@@ -3,155 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricPulse — Advanced Editor: {{ song.title }}</title>
+    <title>LyricPulse — Editor: {{ song.title }}</title>
     <style>
-        :root { --bg: #090d16; --card: #151c2c; --accent: #06b6d4; --lcd-bg: #051a05; --lcd-text: #00ff66; --text: #f8fafc; }
+        :root { --bg: #090d16; --card: #151c2c; --accent: #06b6d4; --text: #f8fafc; --lcd-green: #22c55e; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px; margin: 0; }
         .container { max-width: 900px; margin: 0 auto; }
+        a.back-link { color: var(--accent); text-decoration: none; font-size: 0.9rem; font-weight: 600; display: inline-block; margin-bottom: 16px; }
         .card { background: var(--card); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #1e293b; }
+        .card h2 { margin-top: 0; font-size: 1.1rem; color: #94a3b8; margin-bottom: 14px; text-align: center; }
         
-        /* Hardware 1602 LCD Display Simulator */
-        .lcd-simulator { background: var(--lcd-bg); color: var(--lcd-text); font-family: 'Courier New', monospace; padding: 16px; border-radius: 8px; border: 4px solid #000; box-shadow: 0 0 12px rgba(0,255,102,0.2); width: 280px; margin: 0 auto 16px auto; }
-        .lcd-line { height: 22px; font-size: 1.2rem; font-weight: bold; letter-spacing: 3px; white-space: pre; }
+        /* 1602 HARDWARE SIMULATOR */
+        .lcd-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 10px 0; }
+        .lcd-screen { background: #042f2e; border: 4px solid #115e59; border-radius: 8px; width: 280px; padding: 14px; box-shadow: 0 0 15px rgba(34, 197, 94, 0.2); font-family: 'Courier New', Courier, monospace; color: var(--lcd-green); font-weight: bold; letter-spacing: 2px; }
+        .lcd-line { height: 22px; line-height: 22px; white-space: pre; overflow: hidden; text-align: center; font-size: 1.1rem; text-shadow: 0 0 5px rgba(34, 197, 94, 0.6); }
+
+        button { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; font-size: 0.9rem; }
+        button:hover { opacity: 0.9; }
+        button.btn-sec { background: #1e293b; color: var(--accent); border: 1px solid #334155; }
         
-        .timeline-row { display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 10px; align-items: center; margin-bottom: 8px; background: #0f172a; padding: 8px; border-radius: 6px; }
-        input { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 6px; border-radius: 4px; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
-        .btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }
-        .btn:hover { opacity: 0.9; }
-        .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        /* TIMELINE & FORMATTING LIST */
+        .lyric-row { display: grid; grid-template-columns: 80px 1fr 1fr 100px; gap: 10px; align-items: center; background: #0f172a; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #1e293b; }
+        input[type="text"], input[type="number"] { background: #1e293b; border: 1px solid #334155; color: #fff; padding: 8px; border-radius: 6px; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+        .mood-badge { display: inline-block; background: #0f172a; border: 1px solid var(--accent); color: var(--accent); padding: 6px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 600; margin-top: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <p><a href="/library" style="color: var(--accent); text-decoration: none;">← Back to Track Library</a></p>
+        <a href="/library" class="back-link">← Back to Track Library</a>
 
-        <div class="card" style="text-align: center;">
-            <h3 style="margin-top:0; color:#94a3b8;">1602A Hardware Live Simulator</h3>
-            <div class="lcd-simulator">
-                <div class="lcd-line" id="sim-line1">READY FOR SYNC  </div>
-                <div class="lcd-line" id="sim-line2">LYRICPULSE 1602 </div>
+        <div class="card">
+            <h2>1602A Hardware Live Simulator</h2>
+            <div class="lcd-container">
+                <div class="lcd-screen">
+                    <div id="lcd-line-1" class="lcd-line">READY FOR SYNC  </div>
+                    <div id="lcd-line-2" class="lcd-line">LYRICPULSE 1602 </div>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 10px;">
+                    <button onclick="startSimulatedPlayback()">▶ Start Live Preview</button>
+                    <button class="btn-sec" onclick="triggerRemoteRecord()">⏺ Prepare Remote Recording</button>
+                </div>
             </div>
-            <div style="display:flex; justify-content:center; gap:10px;">
-                <button class="btn" onclick="startSimulatedPlayback()">▶ Start Live Preview</button>
-                <button class="btn btn-outline" onclick="triggerRemoteRecord()">⏺ Prepare Remote Recording</button>
-            </div>
-        </div>
-
-        <div class="card" style="text-align: center;">
-            <h3 style="margin-top:0; color:#94a3b8;">Lyric Sentiment Analyzer</h3>
-            <p id="sentiment-status" style="color:#94a3b8; font-size:0.9rem;">Click to analyze full LRC sentiment profile...</p>
-            <button class="btn btn-outline" onclick="runSentimentAnalysis()">Analyze Lyric Mood</button>
         </div>
 
         <div class="card">
+            <h2>Lyric Sentiment Analyzer</h2>
+            <p style="color:#64748b; margin-top:0; font-size:0.9rem; text-align:center;">Analyze lyrics to get suggested track mood tags.</p>
+            <div style="text-align: center;">
+                <button class="btn-sec" onclick="analyzeSentiment()">Analyze Lyric Mood</button>
+                <div id="sentiment-result" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Lyric Line Timeline & Formatting</h2>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 style="margin:0; color:#94a3b8;">Lyric Line Timeline & Formatting</h3>
+                <span style="font-size:0.85rem; color:#64748b;">Nudge All Timestamps:</span>
                 <div>
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(-200)">-200ms All</button>
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(200)">+200ms All</button>
+                    <button class="btn-sec" onclick="nudgeTimestamps(-200)">-200ms</button>
+                    <button class="btn-sec" onclick="nudgeTimestamps(200)">+200ms</button>
                 </div>
             </div>
-            
+
             <div id="timeline-container">
                 {% for line in lyrics %}
-                <div class="timeline-row" id="row-{{ loop.index0 }}">
+                <div class="lyric-row" id="row-{{ loop.index0 }}">
                     <input type="number" step="0.1" value="{{ '%.2f'|format(line[0]) }}" id="ts-{{ loop.index0 }}">
                     <input type="text" maxlength="16" value="{{ line[1] }}" id="l1-{{ loop.index0 }}">
                     <input type="text" maxlength="16" value="{{ line[2] }}" id="l2-{{ loop.index0 }}">
-                    <button class="btn" style="font-size:0.75rem; padding:6px;" onclick="saveLine({{ loop.index0 }})">Save</button>
+                    <button class="btn-sec" onclick="saveLine('{{ loop.index0 }}')">Save</button>
                 </div>
                 {% else %}
-                <p style="color:#64748b; text-align:center;">No timeline data available for this track.</p>
+                <p style="color:#64748b; text-align:center;">No parsed lyrics found for this track.</p>
                 {% endfor %}
             </div>
         </div>
     </div>
 
-    <div id="lyrics-store" style="display: none;">
-        {% for line in lyrics %}
-        <div class="lyric-item" data-ts="{{ line[0] }}" data-l1="{{ line[1] }}" data-l2="{{ line[2] }}"></div>
-        {% endfor %}
-    </div>
-
     <script>
-        const songId = window.location.pathname.split('/').pop();
-        
-        // Parse lyrics safely from the HTML DOM layout (completely avoids VS Code JS-linter errors)
-        const rawLyricsData = [];
-        document.querySelectorAll('.lyric-item').forEach(el => {
-            rawLyricsData.push([
-                parseFloat(el.getAttribute('data-ts')),
-                el.getAttribute('data-l1'),
-                el.getAttribute('data-l2')
-            ]);
-        });
+        const songId = {{ song.id }};
+        const rawLyrics = [
+            {% for line in lyrics %}
+            { timestamp: {{ line[0] }}, line1: "{{ line[1] }}", line2: "{{ line[2] }}" },
+            {% endfor %}
+        ];
 
         let previewTimer = null;
 
-        function updateSimulator(l1, l2) {
-            document.getElementById('sim-line1').innerText = (l1 || '').padEnd(16, ' ').slice(0, 16);
-            document.getElementById('sim-line2').innerText = (l2 || '').padEnd(16, ' ').slice(0, 16);
-        }
-
-        // 1. Simulator Playback Engine
+        // 1. SIMULATE 1602 LCD PLAYBACK IN BROWSERS
         function startSimulatedPlayback() {
-            if (rawLyricsData.length === 0) {
-                alert('No lyrics found to preview.');
-                return;
-            }
+            if (rawLyrics.length === 0) return;
             if (previewTimer) clearInterval(previewTimer);
 
             let startTime = Date.now();
-            updateSimulator("  PLAYING...  ", "                ");
-
+            
             previewTimer = setInterval(() => {
                 let elapsed = (Date.now() - startTime) / 1000;
                 let activeLine = null;
 
-                for (let i = 0; i < rawLyricsData.length; i++) {
-                    if (elapsed >= rawLyricsData[i][0]) {
-                        activeLine = rawLyricsData[i];
+                for (let i = 0; i < rawLyrics.length; i++) {
+                    if (elapsed >= rawLyrics[i].timestamp) {
+                        activeLine = rawLyrics[i];
                     }
                 }
 
                 if (activeLine) {
-                    updateSimulator(activeLine[1], activeLine[2]);
+                    document.getElementById('lcd-line-1').innerText = activeLine.line1.padEnd(16, ' ');
+                    document.getElementById('lcd-line-2').innerText = activeLine.line2.padEnd(16, ' ');
                 }
 
-                let lastTimestamp = rawLyricsData[rawLyricsData.length - 1][0];
-                if (elapsed > lastTimestamp + 3) {
+                if (elapsed > rawLyrics[rawLyrics.length - 1].timestamp + 3) {
                     clearInterval(previewTimer);
-                    updateSimulator("    COMPLETE    ", "   READY AGAIN  ");
+                    document.getElementById('lcd-line-1').innerText = "    FINISHED    ";
+                    document.getElementById('lcd-line-2').innerText = "   READY AGAIN  ";
                 }
             }, 100);
         }
 
-        // 2. Sentiment Analyzer Trigger
-        async function runSentimentAnalysis() {
+        // 2. REMOTE RECORDING TRIGGER
+        async function triggerRemoteRecord() {
+            const res = await fetch('/api/recording/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ song_id: songId, countdown_sec: 3 })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                alert('⏺ Countdown started on Raspberry Pi 1602 LCD!');
+            } else {
+                alert('Error: ' + (data.message || 'Could not start recording.'));
+            }
+        }
+
+        // 3. SENTIMENT ANALYZER
+        async function analyzeSentiment() {
             const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
             const data = await res.json();
             if (data.status === 'success') {
-                document.getElementById('sentiment-status').innerText = 
-                    `Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${Math.round(data.confidence * 100)}%)`;
+                const resDiv = document.getElementById('sentiment-result');
+                resDiv.style.display = 'block';
+                resDiv.innerHTML = `<span class="mood-badge">Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${(data.confidence * 100).toFixed(0)}%)</span>`;
             }
         }
 
-        // 3. Remote Hardware Recording Trigger
-        async function triggerRemoteRecord() {
-            const res = await fetch('/api/remote/play', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ song_id: parseInt(songId), countdown_sec: 3 })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                alert('⏺ 1602 LCD Recording Countdown triggered successfully!');
-            } else {
-                alert('Error starting recording: ' + (data.message || 'Engine offline'));
-            }
-        }
-
-        // 4. Line Formatting & Persistence
+        // 4. SAVE INDIVIDUAL LINE EDIT
         async function saveLine(idx) {
             const ts = parseFloat(document.getElementById(`ts-${idx}`).value);
             const line1 = document.getElementById(`l1-${idx}`).value;
@@ -160,17 +154,16 @@
             const res = await fetch(`/api/lyrics/${songId}/update-line`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: idx, timestamp_sec: ts, line1: line1, line2: line2 })
+                body: JSON.stringify({ index: parseInt(idx), timestamp_sec: ts, line1: line1, line2: line2 })
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
+                alert('Line updated!');
                 location.reload();
-            } else {
-                alert('Failed to update line.');
             }
         }
 
-        // 5. Global Timestamp Shift/Nudge
+        // 5. NUDGE TIMESTAMPS
         async function nudgeTimestamps(ms) {
             const res = await fetch(`/api/songs/${songId}/nudge`, {
                 method: 'POST',
