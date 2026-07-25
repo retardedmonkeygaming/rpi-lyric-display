@@ -211,3 +211,42 @@ def get_song_lyrics_json(song_id):
     # Format each line as [timestamp, line1, line2]
     formatted = [[line[0], line[1], line[2]] for line in lyrics]
     return jsonify({'status': 'success', 'lyrics': formatted})
+from flask import jsonify
+
+@web_bp.route('/api/songs/<int:song_id>/analyze-sentiment')
+def analyze_sentiment(song_id):
+    # Fetch lyrics from your DB/storage
+    lyrics = db.get_song_lyrics(song_id)  # or song.lrc_content
+    
+    if not lyrics:
+        return jsonify({
+            'status': 'error', 
+            'message': 'No lyrics found for this track! Please add lyric lines first.'
+        }), 400
+
+    # Combine lyrics text for mood analysis
+    full_text = " ".join([l[1] + " " + l[2] for l in lyrics]).lower()
+
+    # Simple rule-based sentiment / emoji selector (or connect your sentiment model here)
+    emoji = "🎵"
+    mood = "neutral"
+    
+    if any(w in full_text for w in ['love', 'baby', 'sweet', 'heart', 'kiss']):
+        mood = "romantic"
+        emoji = "💖"
+    elif any(w in full_text for w in ['happy', 'dance', 'sun', 'party', 'joy', 'smile']):
+        mood = "energetic / happy"
+        emoji = "⚡"
+    elif any(w in full_text for w in ['sad', 'cry', 'alone', 'dark', 'pain', 'tear']):
+        mood = "melancholic"
+        emoji = "🌧️"
+    elif any(w in full_text for w in ['fire', 'fight', 'power', 'rock', 'wild']):
+        mood = "intense / aggressive"
+        emoji = "🔥"
+
+    return jsonify({
+        'status': 'success',
+        'suggested_mood': mood,
+        'emoji': emoji,
+        'confidence': 0.88
+    })

@@ -66,14 +66,20 @@
             </div>
         </div>
 
-        <div class="card">
-            <h2>Lyric Sentiment Analyzer</h2>
-            <p style="color:#64748b; margin-top:0; font-size:0.9rem; text-align:center;">Analyze lyrics to get suggested track mood tags.</p>
-            <div style="text-align: center;">
-                <button class="btn-sec" onclick="analyzeSentiment()">Analyze Lyric Mood</button>
-                <div id="sentiment-result" style="display:none;"></div>
-            </div>
-        </div>
+      <div class="card" style="text-align: center;">
+    <h3 style="margin-top:0; color:#94a3b8;">Lyric Sentiment & Auto Emoji Analyzer</h3>
+    
+    <div id="sentiment-display" style="margin: 16px 0;">
+        <span id="mood-emoji" style="font-size: 2.5rem; display: block; margin-bottom: 6px;">🎵</span>
+        <p id="sentiment-status" style="color:#94a3b8; font-size:0.95rem; margin:0;">
+            Click to analyze lyrics and assign an auto-selected track emoji badge.
+        </p>
+    </div>
+
+    <button class="btn btn-outline" id="btn-analyze" onclick="runSentimentAnalysis()">
+        Analyze Lyric Mood & Auto-Assign Emoji
+    </button>
+</div>
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -176,18 +182,38 @@ function formatLCDLine(str) {
         }
 
         // 2. Sentiment Analyzer
-        async function runSentimentAnalysis() {
-            try {
-                const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
-                const data = await res.json();
-                if (data.status === 'success') {
-                    document.getElementById('sentiment-status').innerText = 
-                        `Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${Math.round(data.confidence * 100)}%)`;
-                }
-            } catch (e) {
-                alert('Error running sentiment analysis.');
-            }
+      async function runSentimentAnalysis() {
+    const statusEl = document.getElementById('sentiment-status');
+    const emojiEl = document.getElementById('mood-emoji');
+    const btn = document.getElementById('btn-analyze');
+
+    statusEl.innerText = "Analyzing lyric sentiment and picking emoji...";
+    statusEl.style.color = "var(--accent)";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            // Update sentiment status text & display auto-selected emoji
+            emojiEl.innerText = data.emoji;
+            statusEl.innerText = `Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${Math.round(data.confidence * 100)}%)`;
+            statusEl.style.color = "#00ff66"; // Success LCD green
+        } else {
+            emojiEl.innerText = "⚠️";
+            statusEl.innerText = data.message || "Failed to analyze mood. Make sure lyrics are added to the timeline.";
+            statusEl.style.color = "#f87171"; // Warning red
         }
+    } catch (err) {
+        console.error("Sentiment API error:", err);
+        emojiEl.innerText = "❌";
+        statusEl.innerText = "Error connecting to sentiment analyzer engine.";
+        statusEl.style.color = "#f87171";
+    } finally {
+        btn.disabled = false;
+    }
+}
 
         // 3. Remote Hardware Recording Trigger
         async function triggerRemoteRecord() {
