@@ -21,8 +21,19 @@ def get_local_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
+# Inside __init__ of LyricSyncApp in app.py:
 class LyricSyncApp:
     def __init__(self):
+        global current_app_instance
+        current_app_instance = self
+
+        self.db = DatabaseManager()
+        self.lcd = LCDEngine()
+
+        self.flask_app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
+        # Attach instance directly to Flask config for bulletproof access
+        self.flask_app.config["LYRIC_APP"] = self
+        self.flask_app.register_blueprint(web_bp)
         global current_app_instance
         current_app_instance = self
 

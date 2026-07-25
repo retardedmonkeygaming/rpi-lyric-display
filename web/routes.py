@@ -234,3 +234,24 @@ def start_recording_mode():
         return jsonify({"status": "success", "recording_song_id": song_id, "countdown": countdown})
 
     return jsonify({"status": "error", "message": "App engine offline"}), 500
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, current_app
+
+# ... inside web/routes.py ...
+
+@web_bp.route("/api/recording/start", methods=["POST"])
+def start_recording_mode():
+    data = request.get_json(silent=True) or {}
+    song_id = data.get("song_id")
+    countdown = data.get("countdown_sec", 3)
+
+    if not song_id:
+        return jsonify({"status": "error", "message": "Missing song_id"}), 400
+
+    # Retrieve engine instance from Flask app config
+    engine = current_app.config.get("LYRIC_APP")
+    
+    if engine:
+        engine.trigger_recording_mode(int(song_id), countdown_sec=countdown)
+        return jsonify({"status": "success", "recording_song_id": song_id, "countdown": countdown})
+
+    return jsonify({"status": "error", "message": "App engine offline"}), 500
