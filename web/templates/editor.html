@@ -55,123 +55,163 @@
         </div>
 
         <div class="card">
-            <h2>Lyric Line Timeline & Formatting</h2>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <span style="font-size:0.85rem; color:#64748b;">Nudge All Timestamps:</span>
+                <h3 style="margin:0; color:#94a3b8;">Lyric Line Timeline & Formatting</h3>
                 <div>
-                    <button class="btn-sec" onclick="nudgeTimestamps(-200)">-200ms</button>
-                    <button class="btn-sec" onclick="nudgeTimestamps(200)">+200ms</button>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(-200)">-200ms All</button>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(200)">+200ms All</button>
                 </div>
             </div>
-
+            
             <div id="timeline-container">
                 {% for line in lyrics %}
-                <div class="lyric-row" id="row-{{ loop.index0 }}">
-                    <input type="number" step="0.1" value="{{ '%.2f'|format(line[0]) }}" id="ts-{{ loop.index0 }}">
-                    <input type="text" maxlength="16" value="{{ line[1] }}" id="l1-{{ loop.index0 }}">
-                    <input type="text" maxlength="16" value="{{ line[2] }}" id="l2-{{ loop.index0 }}">
-                    <button class="btn-sec" onclick="saveLine('{{ loop.index0 }}')">Save</button>
+                {# Support both dicts (line.timestamp) and tuples (line[0]) cleanly #}
+                {% set ts = line.timestamp if line.timestamp is defined else line[0] %}
+                {% set l1 = line.line1 if line.line1 is defined else line[1] %}
+                {% set l2 = line.line2 if line.line2 is defined else line[2] %}
+                
+                <div class="timeline-row" id="row-{{ loop.index0 }}">
+                    <input type="number" step="0.01" value="{{ (ts | float) | round(2) }}" id="ts-{{ loop.index0 }}">
+                    <input type="text" maxlength="16" value="{{ l1 }}" id="l1-{{ loop.index0 }}">
+                    <input type="text" maxlength="16" value="{{ l2 }}" id="l2-{{ loop.index0 }}">
+                    <button class="btn" style="font-size:0.75rem; padding:6px;" onclick="saveLine({{ loop.index0 }})">Save</button>
                 </div>
                 {% else %}
-                <p style="color:#64748b; text-align:center;">No parsed lyrics found for this track.</p>
+                <p style="color:#64748b; text-align:center;">No timeline data available for this track.</p>
                 {% endfor %}
             </div>
         </div>
     </div>
 
-    <script>
+   <script>
+        // Directly inject song.id from Jinja to prevent route path splitting bugs
         const songId = {{ song.id }};
-        const rawLyrics = [
-            {% for line in lyrics %}
-            { timestamp: {{ line[0] }}, line1: "{{ line[1] }}", line2: "{{ line[2] }}" },
-            {% endfor %}
-        ];
+        
+        // Parse timeline data directly from rendered inputs
+        function getLyricsDataFromDOM() {
+            const rows = document.querySelectorAll('.timeline-row');
+            const data = [];
+            rows.forEach((row, idx) => {
+                const ts = parseFloat(document.getElementById(`ts-${idx}`)?.value || 0);
+                const line1 = document.getElementById(`l1-${idx}`)?.value || '';
+                const line2 = document.getElementById(`l2-${idx}`)?.value || '';
+                data.push([ts, line1, line2]);
+            });
+            return data;
+        }
 
         let previewTimer = null;
 
-        // 1. SIMULATE 1602 LCD PLAYBACK IN BROWSERS
+        function updateSimulator(l1, l2) {
+            document.getElementById('sim-line1').innerText = (l1 || '').padEnd(16, ' ').slice(0, 16);
+            document.getElementById('sim-line2').innerText = (l2 || '').padEnd(16, ' ').slice(0, 16);
+        }
+
+        // 1. Simulator Playback Engine
         function startSimulatedPlayback() {
-            if (rawLyrics.length === 0) return;
+            const rawLyricsData = getLyricsDataFromDOM();
+            if (rawLyricsData.length === 0) {
+                alert('No lyric lines available in the timeline to preview.');
+                return;
+            }
             if (previewTimer) clearInterval(previewTimer);
 
             let startTime = Date.now();
-            
+            updateSimulator("  PLAYING...  ", "                ");
+
             previewTimer = setInterval(() => {
                 let elapsed = (Date.now() - startTime) / 1000;
                 let activeLine = null;
 
-                for (let i = 0; i < rawLyrics.length; i++) {
-                    if (elapsed >= rawLyrics[i].timestamp) {
-                        activeLine = rawLyrics[i];
+                for (let i = 0; i < rawLyricsData.length; i++) {
+                    if (elapsed >= rawLyricsData[i][0]) {
+                        activeLine = rawLyricsData[i];
                     }
                 }
 
                 if (activeLine) {
-                    document.getElementById('lcd-line-1').innerText = activeLine.line1.padEnd(16, ' ');
-                    document.getElementById('lcd-line-2').innerText = activeLine.line2.padEnd(16, ' ');
+                    updateSimulator(activeLine[1], activeLine[2]);
                 }
 
-                if (elapsed > rawLyrics[rawLyrics.length - 1].timestamp + 3) {
+                let lastTimestamp = rawLyricsData[rawLyricsData.length - 1][0];
+                if (elapsed > lastTimestamp + 3) {
                     clearInterval(previewTimer);
-                    document.getElementById('lcd-line-1').innerText = "    FINISHED    ";
-                    document.getElementById('lcd-line-2').innerText = "   READY AGAIN  ";
+                    updateSimulator("    COMPLETE    ", "   READY AGAIN  ");
                 }
             }, 100);
         }
 
-        // 2. REMOTE RECORDING TRIGGER
+        // 2. Sentiment Analyzer
+        async function runSentimentAnalysis() {
+            try {
+                const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('sentiment-status').innerText = 
+                        `Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${Math.round(data.confidence * 100)}%)`;
+                }
+            } catch (e) {
+                alert('Error running sentiment analysis.');
+            }
+        }
+
+        // 3. Remote Hardware Recording Trigger
         async function triggerRemoteRecord() {
-            const res = await fetch('/api/recording/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ song_id: songId, countdown_sec: 3 })
-            });
-            const data = await res.json();
-            if (res.ok && data.status === 'success') {
-                alert('⏺ Countdown started on Raspberry Pi 1602 LCD!');
-            } else {
-                alert('Error: ' + (data.message || 'Could not start recording.'));
+            try {
+                const res = await fetch('/api/remote/play', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song_id: songId, countdown_sec: 3 })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('⏺ 1602 LCD Recording Countdown triggered successfully!');
+                } else {
+                    alert('Error starting recording: ' + (data.message || 'Engine offline'));
+                }
+            } catch (e) {
+                alert('Could not reach remote playback service.');
             }
         }
 
-        // 3. SENTIMENT ANALYZER
-        async function analyzeSentiment() {
-            const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
-            const data = await res.json();
-            if (data.status === 'success') {
-                const resDiv = document.getElementById('sentiment-result');
-                resDiv.style.display = 'block';
-                resDiv.innerHTML = `<span class="mood-badge">Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${(data.confidence * 100).toFixed(0)}%)</span>`;
-            }
-        }
-
-        // 4. SAVE INDIVIDUAL LINE EDIT
+        // 4. Save Individual Line
         async function saveLine(idx) {
             const ts = parseFloat(document.getElementById(`ts-${idx}`).value);
             const line1 = document.getElementById(`l1-${idx}`).value;
             const line2 = document.getElementById(`l2-${idx}`).value;
 
-            const res = await fetch(`/api/lyrics/${songId}/update-line`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: parseInt(idx), timestamp_sec: ts, line1: line1, line2: line2 })
-            });
-            const data = await res.json();
-            if (res.ok && data.status === 'success') {
-                alert('Line updated!');
-                location.reload();
+            try {
+                const res = await fetch(`/api/lyrics/${songId}/update-line`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index: idx, timestamp_sec: ts, line1: line1, line2: line2 })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    alert(`Line ${idx + 1} updated!`);
+                } else {
+                    alert('Failed to update line: ' + (data.message || 'Server error'));
+                }
+            } catch (e) {
+                alert('Network error while saving line.');
             }
         }
 
-        // 5. NUDGE TIMESTAMPS
+        // 5. Global Nudge
         async function nudgeTimestamps(ms) {
-            const res = await fetch(`/api/songs/${songId}/nudge`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ offset_ms: ms })
-            });
-            if (res.ok) {
-                location.reload();
+            try {
+                const res = await fetch(`/api/songs/${songId}/nudge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offset_ms: ms })
+                });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    alert('Failed to nudge timestamps.');
+                }
+            } catch (e) {
+                alert('Network error while nudging timestamps.');
             }
         }
     </script>
