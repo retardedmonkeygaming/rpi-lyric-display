@@ -11,7 +11,9 @@ from web.routes import web_bp
 
 current_app_instance = None
 
+
 def get_local_ip() -> str:
+    """Retrieves the Raspberry Pi's local network IP address."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -21,41 +23,41 @@ def get_local_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
-# Inside __init__ of LyricSyncApp in app.py:
+
 class LyricSyncApp:
     def __init__(self):
+        # 1. Declare global reference FIRST
         global current_app_instance
         current_app_instance = self
 
-        self.db = DatabaseManager()
-        self.lcd = LCDEngine()
-
-        self.flask_app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
-        # Attach instance directly to Flask config for bulletproof access
-        self.flask_app.config["LYRIC_APP"] = self
-        self.flask_app.register_blueprint(web_bp)
-        global current_app_instance
-        current_app_instance = self
-
+        # 2. Initialize database, LCD, and plugins
         self.db = DatabaseManager()
         self.lcd = LCDEngine()
         self.plugins = PluginLoader().load_plugins()
 
-        self.state = "IDLE"
+        # 3. Setup Flask application
+        self.flask_app = Flask(
+            __name__,
+            template_folder="web/templates",
+            static_folder="web/static"
+        )
+        self.flask_app.config["LYRIC_APP"] = self
+        self.flask_app.register_blueprint(web_bp)
+
+        # 4. State & networking variables
+        self.state = "IDLE"  # IDLE, MENU, PLAYING
         self.songs_list = []
         self.selected_index = 0
         self.stop_playback = False
         self.local_ip = get_local_ip()
 
+        # 5. Touch sensor hardware setup
         self.touch = TouchInputHandler(
             on_short_press=self._handle_short_press,
             on_double_tap=self._handle_double_tap,
             on_triple_tap=self._handle_triple_tap,
             on_long_press=self._handle_long_press,
         )
-
-        self.flask_app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
-        self.flask_app.register_blueprint(web_bp)
 
     def _handle_short_press(self):
         if self.state == "IDLE":
@@ -94,7 +96,6 @@ class LyricSyncApp:
 
     def trigger_recording_mode(self, song_id: int, countdown_sec: int = 3):
         """Executes a visual countdown lock before starting timed playback on LCD."""
-        # Force state to PLAYING and cancel any lingering stop flags
         self.stop_playback = False
         self.state = "PLAYING"
 
@@ -119,6 +120,7 @@ class LyricSyncApp:
 
         t = threading.Thread(target=recording_thread, daemon=True)
         t.start()
+
     def _start_song_playback(self, song_id: int):
         lyrics = self.db.get_song_lyrics(song_id)
         if not lyrics:
@@ -176,6 +178,7 @@ class LyricSyncApp:
         except KeyboardInterrupt:
             self.touch.cleanup()
             self.lcd.clear()
+
 
 if __name__ == "__main__":
     app = LyricSyncApp()
