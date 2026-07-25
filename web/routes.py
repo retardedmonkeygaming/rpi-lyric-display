@@ -240,3 +240,53 @@ def analyze_sentiment(song_id: int):
         "emoji": emoji,
         "confidence": round(float(confidence), 2)
     })
+# Quick keyword-to-emoji mapping dictionary for individual lines
+LINE_EMOJI_RULES = [
+    (['love', 'heart', 'kiss', 'hold', 'sweet', 'baby', 'yours', 'forever'], '💖'),
+    (['fire', 'burn', 'hot', 'flame', 'wild', 'light'], '🔥'),
+    (['happy', 'dance', 'smile', 'joy', 'sun', 'shine', 'star', 'light'], '✨'),
+    (['sad', 'cry', 'rain', 'dark', 'alone', 'tear', 'lonely', 'fall'], '🌧️'),
+    (['night', 'moon', 'sleep', 'dream', 'dark'], '🌙'),
+    (['car', 'drive', 'run', 'fast', 'speed', 'move'], '🚗'),
+    (['eye', 'see', 'look', 'watch'], '👁️'),
+    (['talk', 'say', 'word', 'sing', 'voice', 'call'], '🗣️'),
+]
+
+def pick_line_emoji(text: str) -> str:
+    """Returns a matching emoji for a short line of text, or default music note."""
+    clean_text = text.lower()
+    for keywords, emoji in LINE_EMOJI_RULES:
+        if any(kw in clean_text for kw in keywords):
+            return emoji
+    return '🎵'
+
+@web_bp.route("/api/songs/<int:song_id>/auto-emoji-lines", methods=["POST"])
+def auto_emoji_lines(song_id: int):
+    """Analyzes every line in the track and prepends a matching emoji to Line 1."""
+    lyrics = db.get_song_lyrics(song_id)
+    if not lyrics:
+        return jsonify({"status": "error", "message": "No lyrics found"}), 400
+
+    updated_lyrics = []
+    for ts, l1, l2 in lyrics:
+        # Avoid double-adding emojis if one already exists
+        full_line = f"{l1} {l2}"
+        emoji = pick_line_emoji(full_line)
+        
+        # Prepend emoji to line1 if space allows (up to 16 chars)
+        if not l1.startswith(tuple(e for _, e in LINE_EMOJI_RULES) + ('🎵',)):
+            new_l1 = f"{emoji} {l1}".strip()[:16]
+        else:
+            new_l1 = l1[:16]
+
+        updated_lyrics.append((ts, new_l1, l2[:16]))
+
+    # Save back to database
+    with db.get_connection() as conn:
+        conn.execute("DELETE FROM song_lyrics WHERE song_id = ?", (song_id,))
+        conn.executemany(
+            "INSERT INTO song_lyrics (song_id, timestamp_sec, line1, line2) VALUES (?, ?, ?, ?)",
+            [(song_id, ts, l1, l2) for ts, l1, l2 in updated_lyrics]
+        )
+
+    return jsonify({"status": "success", "song_id": song_id, "line_count": len(updated_lyrics)})

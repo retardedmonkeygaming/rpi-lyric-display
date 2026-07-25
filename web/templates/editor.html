@@ -87,6 +87,14 @@
                 <div>
                     <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(-200)">-200ms All</button>
                     <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="nudgeTimestamps(200)">+200ms All</button>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 12px;">
+    <button class="btn btn-outline" id="btn-analyze" onclick="runSentimentAnalysis()">
+        Analyze Mood Badge
+    </button>
+    <button class="btn" id="btn-emoji-lines" onclick="applyEmojiToAllLines()">
+        ✨ Auto-Emoji Every Line
+    </button>
+</div>
                 </div>
             </div>
             
@@ -275,6 +283,26 @@ function formatLCDLine(str) {
                 alert('Network error while nudging timestamps.');
             }
         }
+        async function applyEmojiToAllLines() {
+    if (!confirm("This will analyze each line and add emojis to your timeline. Continue?")) return;
+
+    try {
+        const res = await fetch(`/api/songs/${songId}/auto-emoji-lines`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            alert(`Successfully added emojis to ${data.line_count} lyric lines!`);
+            location.reload(); // Refresh to load new emojis into inputs
+        } else {
+            alert('Failed: ' + (data.message || 'Server error'));
+        }
+    } catch (e) {
+        alert('Network error while processing line emojis.');
+    }
+}
     </script>
 </body>
 </html>
