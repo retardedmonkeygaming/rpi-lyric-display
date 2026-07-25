@@ -82,29 +82,32 @@ class LyricSyncApp:
         self.lcd.display_menu_item(song["title"], song["artist"])
 
     def trigger_recording_mode(self, song_id: int, countdown_sec: int = 3):
-        """Executes a visual 3-second countdown lock before starting timed playback."""
-        if self.state != "PLAYING":
-            self.state = "PLAYING"
-            
-            def recording_thread():
-                self.lcd.clear()
-                for count in range(countdown_sec, 0, -1):
-                    self.lcd.display_lines("RECORDING IN...", f"      {count}      ")
-                    time.sleep(1.0)
-                
+        """Executes a visual countdown lock before starting timed playback on LCD."""
+        # Force state to PLAYING and cancel any lingering stop flags
+        self.stop_playback = False
+        self.state = "PLAYING"
+
+        def recording_thread():
+            self.lcd.clear()
+            for count in range(countdown_sec, 0, -1):
+                if self.stop_playback:
+                    break
+                self.lcd.display_lines("RECORDING IN...", f"      {count}      ")
+                time.sleep(1.0)
+
+            if not self.stop_playback:
                 self.lcd.display_lines("  RECORDING!  ", "    ACTION    ")
                 time.sleep(0.8)
-                
+
                 start_time = time.time()
-                self._start_song_playback(song_id)
+                self._start_song_playback(int(song_id))
                 duration = round(time.time() - start_time, 2)
-                
+
                 status = "STOPPED" if self.stop_playback else "COMPLETED"
-                self.db.log_session(song_id, duration, status)
+                self.db.log_session(int(song_id), duration, status)
 
-            t = threading.Thread(target=recording_thread, daemon=True)
-            t.start()
-
+        t = threading.Thread(target=recording_thread, daemon=True)
+        t.start()
     def _start_song_playback(self, song_id: int):
         lyrics = self.db.get_song_lyrics(song_id)
         if not lyrics:

@@ -6,20 +6,45 @@
     <title>LyricPulse — Track Library</title>
     <style>
         :root { --bg: #090d16; --card: #151c2c; --accent: #06b6d4; --danger: #ef4444; --text: #f8fafc; }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 24px; margin: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px; margin: 0; }
         .container { max-width: 900px; margin: 0 auto; }
-        .card { background: var(--card); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #1e293b; }
-        .search-bar { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 8px; box-sizing: border-box; margin-bottom: 12px; }
-        .tag-pill { display: inline-block; background: #1e293b; color: var(--accent); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--accent); margin-right: 6px; }
-        .song-item { background: #0f172a; border-radius: 8px; padding: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .btn-rec { background: var(--accent); color: #000; font-weight: bold; padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        h1 { margin: 0; color: var(--accent); font-size: 1.8rem; }
+        .card { background: var(--card); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        .card h2 { margin-top: 0; font-size: 1.1rem; color: #94a3b8; margin-bottom: 14px; }
+        input, button { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; }
+        input:focus { border-color: var(--accent); outline: none; }
+        button.btn-primary { background: var(--accent); color: #000; font-weight: bold; border: none; cursor: pointer; transition: opacity 0.2s; }
+        button.btn-primary:hover { opacity: 0.9; }
+        .search-bar { margin-bottom: 12px; }
+        .tag-pill { display: inline-block; background: #0f172a; color: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; border: 1px solid #334155; margin-right: 6px; user-select: none; }
+        .tag-pill:hover { border-color: var(--accent); }
+        .song-item { background: #0f172a; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1e293b; }
+        .actions { display: flex; gap: 8px; align-items: center; }
+        .btn-rec { background: var(--accent); color: #000; font-weight: bold; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0; }
+        .btn-edit { background: #1e293b; color: var(--accent); border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚡ LyricPulse Library</h1>
+        <div class="header">
+            <h1>⚡ LyricPulse Library</h1>
+            <span style="color: #64748b; font-size: 0.9rem;">1602A Display Manager</span>
+        </div>
 
         <div class="card">
+            <h2>Upload Track (.lrc)</h2>
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <input type="text" name="title" placeholder="Song Title" required>
+                <input type="text" name="artist" placeholder="Artist Name" required>
+                <input type="text" name="tags" placeholder="Tags (e.g., hype, dark, reel)">
+                <input type="file" name="lrc_file" accept=".lrc,.txt,text/plain,*/*" required>
+                <button type="submit" class="btn-primary">Upload & Format Track</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Search & Filter Library</h2>
             <input type="text" id="search-input" class="search-bar" placeholder="🔍 Search songs by title or artist..." oninput="filterSongs()">
             <div>
                 <span class="tag-pill" onclick="filterByTag('')">All</span>
@@ -30,16 +55,16 @@
         </div>
 
         <div class="card">
-            <h2>Songs</h2>
+            <h2>Track Library</h2>
             <div id="song-container">
                 {% for song in songs %}
-                <div class="song-item">
+                <div class="song-item" id="song-row-{{ song.id }}">
                     <div>
                         <strong>{{ song.title }}</strong> <span style="color:#64748b">— {{ song.artist }}</span>
                     </div>
-                    <div>
+                    <div class="actions">
                         <button class="btn-rec" onclick="startRecord('{{ song.id }}')">⏺ Record</button>
-                        <a href="/editor/{{ song.id }}" style="color:var(--accent); margin-left:10px; text-decoration:none;">Edit</a>
+                        <a href="/editor/{{ song.id }}" class="btn-edit">Edit</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -63,24 +88,37 @@
 
         function renderSongList(songs) {
             const container = document.getElementById('song-container');
+            if (songs.length === 0) {
+                container.innerHTML = '<p style="color:#64748b; margin:0;">No tracks found.</p>';
+                return;
+            }
             container.innerHTML = songs.map(s => `
-                <div class="song-item">
+                <div class="song-item" id="song-row-${s.id}">
                     <div><strong>${s.title}</strong> <span style="color:#64748b">— ${s.artist}</span></div>
-                    <div>
+                    <div class="actions">
                         <button class="btn-rec" onclick="startRecord('${s.id}')">⏺ Record</button>
-                        <a href="/editor/${s.id}" style="color:var(--accent); margin-left:10px; text-decoration:none;">Edit</a>
+                        <a href="/editor/${s.id}" class="btn-edit">Edit</a>
                     </div>
                 </div>
             `).join('');
         }
 
         async function startRecord(songId) {
-            await fetch('/api/recording/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ song_id: parseInt(songId), countdown_sec: 3 })
-            });
-            alert('Recording Mode Triggered! Check LCD Display.');
+            try {
+                const res = await fetch('/api/recording/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song_id: parseInt(songId), countdown_sec: 3 })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    alert('⏺ Recording Started! Watch your 1602 LCD for countdown.');
+                } else {
+                    alert('Failed to start recording: ' + (data.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Network error trying to trigger recording.');
+            }
         }
     </script>
 </body>
