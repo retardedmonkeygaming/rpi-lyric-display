@@ -27,7 +27,9 @@ def library_page():
 @web_bp.route("/editor/<int:song_id>")
 def editor_page(song_id: int):
     """Timestamp & Lyric Alignment Editor."""
-    song = db.get_song_by_id(song_id)
+    songs = db.get_all_songs()
+    song = next((s for s in songs if s["id"] == song_id), None)
+    
     if not song:
         return redirect(url_for("web.library_page"))
 
@@ -36,7 +38,7 @@ def editor_page(song_id: int):
 
 
 # ==========================================
-# 2. UPLOAD & MANAGEMENT ROUTES
+# 2. UPLOAD & SONG MANAGEMENT
 # ==========================================
 
 @web_bp.route("/upload", methods=["POST"])
@@ -73,12 +75,12 @@ def delete_song(song_id: int):
 
 
 # ==========================================
-# 3. SEARCH & RECORDING API ENDPOINTS
+# 3. SEARCH & RECORDING CONTROLS
 # ==========================================
 
 @web_bp.route("/api/songs/search", methods=["GET"])
 def search_songs():
-    """Search and filter songs by title, artist, or tags."""
+    """Search and filter songs by title, artist, or tag."""
     query = request.args.get("q", "").strip().lower()
     tag = request.args.get("tag", "").strip().lower()
     songs = db.get_all_songs()
@@ -103,7 +105,7 @@ def start_recording_mode():
     if not song_id:
         return jsonify({"status": "error", "message": "Missing song_id"}), 400
 
-    # Retrieve engine instance from Flask app config
+    # Retrieve active engine instance securely from Flask app context
     engine = current_app.config.get("LYRIC_APP")
     if engine:
         engine.trigger_recording_mode(int(song_id), countdown_sec=countdown)
@@ -143,7 +145,7 @@ def update_lyrics(song_id: int):
 
 @web_bp.route("/api/lyrics/<int:song_id>/update-line", methods=["POST"])
 def update_lyric_line(song_id: int):
-    """Update a single line's timing or text."""
+    """Update an individual lyric line's timestamp or text."""
     data = request.get_json(silent=True) or {}
     line_index = data.get("index")
     new_timestamp = data.get("timestamp_sec")
