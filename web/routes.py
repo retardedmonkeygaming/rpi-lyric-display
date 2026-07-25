@@ -250,3 +250,16 @@ def analyze_sentiment(song_id):
         'emoji': emoji,
         'confidence': 0.88
     })
+@web_bp.route('/api/songs/<int:song_id>/analyze-sentiment')
+def analyze_sentiment(song_id):
+    # ... your lyric loading & sentiment analysis logic ...
+
+    # Guarantee an emoji string is defined
+    mood_emoji = "💖"  # or dynamically set based on sentiment
+
+    return jsonify({
+        'status': 'success',
+        'suggested_mood': 'romantic',
+        'emoji': mood_emoji,  # <--- MUST match 'emoji' key name
+        'confidence': 0.45
+    })

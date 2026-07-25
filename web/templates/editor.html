@@ -182,28 +182,30 @@ function formatLCDLine(str) {
         }
 
         // 2. Sentiment Analyzer
-      async function runSentimentAnalysis() {
+    async function runSentimentAnalysis() {
     const statusEl = document.getElementById('sentiment-status');
     const emojiEl = document.getElementById('mood-emoji');
     const btn = document.getElementById('btn-analyze');
 
     statusEl.innerText = "Analyzing lyric sentiment and picking emoji...";
     statusEl.style.color = "var(--accent)";
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
 
     try {
         const res = await fetch(`/api/songs/${songId}/analyze-sentiment`);
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {
-            // Update sentiment status text & display auto-selected emoji
-            emojiEl.innerText = data.emoji;
+            // Safely fall back through possible JSON keys or default to a musical note
+            const selectedEmoji = data.emoji || data.suggested_emoji || data.mood_emoji || '🎵';
+            
+            emojiEl.innerText = selectedEmoji;
             statusEl.innerText = `Suggested Mood: ${data.suggested_mood.toUpperCase()} (Confidence: ${Math.round(data.confidence * 100)}%)`;
-            statusEl.style.color = "#00ff66"; // Success LCD green
+            statusEl.style.color = "#00ff66";
         } else {
             emojiEl.innerText = "⚠️";
-            statusEl.innerText = data.message || "Failed to analyze mood. Make sure lyrics are added to the timeline.";
-            statusEl.style.color = "#f87171"; // Warning red
+            statusEl.innerText = data.message || "Failed to analyze mood.";
+            statusEl.style.color = "#f87171";
         }
     } catch (err) {
         console.error("Sentiment API error:", err);
@@ -211,10 +213,9 @@ function formatLCDLine(str) {
         statusEl.innerText = "Error connecting to sentiment analyzer engine.";
         statusEl.style.color = "#f87171";
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
-
         // 3. Remote Hardware Recording Trigger
         async function triggerRemoteRecord() {
             try {
