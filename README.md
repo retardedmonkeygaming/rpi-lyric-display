@@ -1,4 +1,4 @@
-# rpi-lyric-display
+# LyricPulse
 
 A Raspberry Pi lyric display and editor for 1602A character LCDs.
 
@@ -20,7 +20,6 @@ This project turns a Raspberry Pi into a smart lyric sync engine with a web dash
 - Raspberry Pi with Python 3
 - 1602A character LCD in 4-bit mode
 - Single touch/tactile button on GPIO 27 for navigation
-- Optional peripherals (not required): buzzer, DHT sensor
 
 ## Pin Configuration
 
@@ -33,11 +32,6 @@ The default GPIO pin mapping is defined in `config.py`:
 - LCD D6: GPIO 23
 - LCD D7: GPIO 18
 - Touch input button: GPIO 27
-
-Optional reserved pins:
-
-- BUZZER_PIN = GPIO 2
-- DHT_SENSOR_PIN = GPIO 4
 
 ## Software Requirements
 
