@@ -103,3 +103,55 @@ def split_text_utility():
     raw_text = data.get("text", "")
     # In Phase 1, we just return the raw or a simple split
     return jsonify({"status": "success", "line1": raw_text[:16], "line2": raw_text[16:32]})
+
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, current_app
+from database.db import DatabaseManager
+from core.content_processor import ContentProcessor
+
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+# ... (Previous index/library routes remain same)
+
+@web_bp.route("/api/songs/<int:song_id>/auto-emoji-lines", methods=["POST"])
+def auto_emoji_lines(song_id: int):
+    """Analyzes every line and injects hardware icons (\x00-\x07) into the DB."""
+    lyrics = db.get_song_lyrics(song_id)
+    if not lyrics:
+        return jsonify({"status": "error", "message": "No lyrics"}), 400
+
+    updated_lyrics = []
+    for ts, l1, l2 in lyrics:
+        # Process Line 1: Inject hardware-specific icon index
+        new_l1 = ContentProcessor.process_line_with_icon(l1)
+        updated_lyrics.append((ts, new_l1, l2))
+
+    # Perform the database update
+    with db.get_connection() as conn:
+        conn.execute("DELETE FROM song_lyrics WHERE song_id = ?", (song_id,))
+        conn.executescript("BEGIN TRANSACTION;")
+        conn.executemany(
+            "INSERT INTO song_lyrics (song_id, timestamp_sec, line1, line2) VALUES (?, ?, ?, ?)",
+            [(song_id, ts, l1, l2) for ts, l1, l2 in updated_lyrics]
+        )
+        conn.execute("COMMIT;")
+
+    return jsonify({"status": "success", "line_count": len(updated_lyrics)})
+
+@web_bp.route("/api/songs/<int:song_id>/analyze-sentiment", methods=["GET"])
+def analyze_sentiment(song_id: int):
+    """Returns a purely hardware-compatible icon suggestion."""
+    lyrics = db.get_song_lyrics(song_id)
+    full_text = " ".join([f"{l[1]} {l[2]}" for l in lyrics])
+    
+    icon_char = ContentProcessor.pick_icon_for_text(full_text)
+    
+    # We send a readable name to the Web UI, but use the icon_char for hardware
+    return jsonify({
+        "status": "success",
+        "suggested_mood": "Detected",
+        "emoji": "Icon Assigned" if icon_char else "None",
+        "confidence": 1.0
+    })
+
+# ... (Rest of routes)

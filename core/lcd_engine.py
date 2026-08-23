@@ -46,13 +46,14 @@ class LCDEngine:
         self._current_buffer = [" " * 16, " " * 16]
 
     def display_lines(self, l1: str, l2: str = "", align: str = "center"):
-        """Differential Refresh: Only updates if text changed to eliminate flicker."""
+        """Differential Refresh with hardware icon support."""
         f_l1 = ContentProcessor.apply_alignment(l1, align)
         f_l2 = ContentProcessor.apply_alignment(l2, align)
 
         if f_l1 != self._current_buffer[0] or f_l2 != self._current_buffer[1]:
-            # Construct the full message for the 1602
-            self.lcd.clear() # Clear before update to ensure no ghosting in Phase 1
+            # Instead of full clear, we just overwrite the message
+            # This is much faster for parallel 1602 displays
+            self.lcd.cursor_position(0, 0)
             self.lcd.message = f"{f_l1}\n{f_l2}"
             self._current_buffer = [f_l1, f_l2]
 
