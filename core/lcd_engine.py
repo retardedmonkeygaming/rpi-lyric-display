@@ -3,11 +3,9 @@ import digitalio
 import adafruit_character_lcd.character_lcd as character_lcd
 from typing import List, Tuple, Optional, Callable
 from config import LCD_PINS
-
+from core.content_processor import ContentProcessor
 
 class LCDEngine:
-    """Manages 1602A LCD rendering, timing synchronization, custom icons, and animations."""
-
     CUSTOM_CHARS = {
         "music_note": [0x04, 0x06, 0x05, 0x05, 0x04, 0x1C, 0x1C, 0x00],
         "heart":      [0x00, 0x0A, 0x1F, 0x1F, 0x0E, 0x04, 0x00, 0x00],
@@ -20,74 +18,53 @@ class LCDEngine:
     }
 
     def __init__(self):
-        self.lcd_rs = digitalio.DigitalInOut(LCD_PINS["rs"])
-        self.lcd_en = digitalio.DigitalInOut(LCD_PINS["en"])
-        self.lcd_d4 = digitalio.DigitalInOut(LCD_PINS["d4"])
-        self.lcd_d5 = digitalio.DigitalInOut(LCD_PINS["d5"])
-        self.lcd_d6 = digitalio.DigitalInOut(LCD_PINS["d6"])
-        self.lcd_d7 = digitalio.DigitalInOut(LCD_PINS["d7"])
-
-        self.cols = LCD_PINS["cols"]
-        self.rows = LCD_PINS["rows"]
-
+        # Setup Pins
+        self.pins = {k: digitalio.DigitalInOut(v) for k, v in LCD_PINS.items() if hasattr(v, 'value') or isinstance(v, board.Pin)}
         self.lcd = character_lcd.Character_LCD_Mono(
-            self.lcd_rs,
-            self.lcd_en,
-            self.lcd_d4,
-            self.lcd_d5,
-            self.lcd_d6,
-            self.lcd_d7,
-            self.cols,
-            self.rows,
+            self.pins["rs"], self.pins["en"], self.pins["d4"], self.pins["d5"], self.pins["d6"], self.pins["d7"],
+            LCD_PINS["cols"], LCD_PINS["rows"]
         )
-
+        
+        self._current_buffer = ["", ""]
         self._load_custom_characters()
         self.clear()
 
     def _load_custom_characters(self):
-        """Loads custom byte-array icons into CGRAM (slots 0-7)."""
         for index, (name, char_bytes) in enumerate(self.CUSTOM_CHARS.items()):
-            if index < 8:
-                self.lcd.create_char(index, char_bytes)
+            if index < 8: self.lcd.create_char(index, char_bytes)
 
     def clear(self):
-        """Forces a hard clear of both lines with blank padding to prevent visual artifacts."""
-        self.lcd.message = "                \n                "
         self.lcd.clear()
+        self._current_buffer = [" " * 16, " " * 16]
 
-    def display_lines(self, line1: str, line2: str = ""):
-        """Pads lines strictly to 16 characters to overwrite residual text."""
-        formatted_line1 = line1[:16].ljust(16)
-        formatted_line2 = line2[:16].ljust(16)
-        self.lcd.message = f"{formatted_line1}\n{formatted_line2}"
+    def display_lines(self, l1: str, l2: str = "", align: str = "center"):
+        """Differential Refresh: Only updates if text changed to eliminate flicker."""
+        f_l1 = ContentProcessor.apply_alignment(l1, align)
+        f_l2 = ContentProcessor.apply_alignment(l2, align)
 
-    def display_menu_item(self, title: str, subtitle: str = ""):
-        """Helper to format menu titles with play icon (\x04)."""
-        line1 = f"\x04 {title[:14]}"
-        line2 = f"  {subtitle[:14]}" if subtitle else ""
-        self.display_lines(line1, line2)
+        if f_l1 != self._current_buffer[0] or f_l2 != self._current_buffer[1]:
+            self.lcd.message = f"{f_l1}\n{f_l2}"
+            self._current_buffer = [f_l1, f_l2]
 
-    def play_boot_animation(self):
-        """Displays startup branding animation with dynamic loading bar."""
+    def play_boot_animation(self, ip_addr: str):
         self.clear()
-        self.display_lines("\x00 LyricPulse", "  Booting Up...")
-        time.sleep(1.2)
-
-        loading_bar = ""
+        # Stage 1: Music Note + Brand
+        self.display_lines("\x00 LyricPulse", "v2.0 Starting")
+        time.sleep(1.0)
+        
+        # Stage 2: Progressive Loading
+        bar = ""
         for _ in range(16):
-            loading_bar += "█"
-            self.display_lines("\x00 LyricPulse", loading_bar)
-            time.sleep(0.08)
+            bar += "█"
+            self.display_lines("\x00 LyricPulse", bar)
+            time.sleep(0.05)
 
-        time.sleep(0.5)
+        # Stage 3: IP Flash
+        self.display_lines("SYSTEM ONLINE", ip_addr)
+        time.sleep(1.5)
         self.clear()
 
-    def play_synced_lyrics(
-        self,
-        lyrics: List[Tuple[float, str, str]],
-        stop_check_callback: Optional[Callable[[], bool]] = None,
-    ):
-        """Executes wall-clock sync loop with instant stop polling."""
+    def play_synced_lyrics(self, lyrics: List[Tuple[float, str, str]], stop_check_callback: Optional[Callable[[], bool]] = None):
         self.clear()
         start_time = time.time()
 
@@ -96,13 +73,9 @@ class LCDEngine:
                 if stop_check_callback and stop_check_callback():
                     self.clear()
                     return
-                time.sleep(0.005)
+                time.sleep(0.002) # Higher precision polling
 
-            if stop_check_callback and stop_check_callback():
-                self.clear()
-                return
-
-            self.display_lines(line1, line2)
+            self.display_lines(line1, line2, align="center") # Alignment pulled from config later
 
         time.sleep(1.5)
         self.clear()
