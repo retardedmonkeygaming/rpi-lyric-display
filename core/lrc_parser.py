@@ -1,35 +1,26 @@
 import re
 from typing import List, Tuple
 
-
 class LRCParser:
     """Parses .lrc content into precise timestamped 16x2 LCD display pages."""
 
     @staticmethod
     def parse_timestamp(timestamp_str: str) -> float:
-        """Converts [mm:ss.xx], [m:s.x], or [mm:ss:xx] to float seconds."""
         try:
             cleaned = timestamp_str.strip("[]")
             parts = cleaned.replace(":", ".").split(".")
-
             minutes = float(parts[0])
             seconds = float(parts[1]) if len(parts) > 1 else 0.0
-
             fraction = 0.0
             if len(parts) > 2 and parts[2]:
                 frac_str = parts[2]
                 fraction = float(frac_str) / (10 ** len(frac_str))
-
             return round(minutes * 60 + seconds + fraction, 2)
         except (ValueError, IndexError):
             return -1.0
 
     @classmethod
     def paginate_text(cls, text: str) -> List[Tuple[str, str]]:
-        """
-        Splits long text into multiple 16x2 display pages (line1, line2).
-        Preserves complete words on every line—no truncating or word cutting.
-        """
         words = text.strip().split()
         if not words:
             return [("", "")]
@@ -38,7 +29,6 @@ class LRCParser:
         remaining_words = list(words)
 
         while remaining_words:
-            # Build Line 1 (<= 16 chars)
             line1_words = []
             l1_len = 0
             while remaining_words:
@@ -50,7 +40,6 @@ class LRCParser:
                 else:
                     break
 
-            # Build Line 2 (<= 16 chars)
             line2_words = []
             l2_len = 0
             while remaining_words:
@@ -62,22 +51,16 @@ class LRCParser:
                 else:
                     break
 
-            # Fallback for an exceptionally long word (>16 chars)
             if not line1_words and remaining_words:
                 w = remaining_words.pop(0)
                 pages.append((w[:16], w[16:32]))
                 continue
 
             pages.append((" ".join(line1_words), " ".join(line2_words)))
-
         return pages
 
     @classmethod
     def parse_lrc_content(cls, lrc_text: str) -> List[Tuple[float, str, str]]:
-        """
-        Parses LRC content, automatically paginating multi-line lyrics across
-        the time window before the next timestamp.
-        """
         time_tag_regex = re.compile(r"\[\d{1,2}:\d{2}(?:[\.:]\d{1,3})?\]")
         raw_entries = []
 
@@ -91,31 +74,23 @@ class LRCParser:
                 continue
 
             lyric_text = time_tag_regex.sub("", line_str).strip()
-
             for ts_tag in timestamps:
                 ts_val = cls.parse_timestamp(ts_tag)
                 if ts_val >= 0.0:
                     raw_entries.append((ts_val, lyric_text))
 
         raw_entries.sort(key=lambda x: x[0])
-
         parsed_lyrics = []
         num_entries = len(raw_entries)
 
         for i, (current_ts, lyric) in enumerate(raw_entries):
             pages = cls.paginate_text(lyric)
-            if not pages:
-                continue
+            if not pages: continue
 
             if len(pages) == 1:
                 parsed_lyrics.append((current_ts, pages[0][0], pages[0][1]))
             else:
-                # Distribute sub-pages evenly in the time gap before the next lyric line
-                next_ts = (
-                    raw_entries[i + 1][0]
-                    if i + 1 < num_entries
-                    else current_ts + (len(pages) * 2.5)
-                )
+                next_ts = raw_entries[i+1][0] if i+1 < num_entries else current_ts + (len(pages) * 2.5)
                 available_time = max(next_ts - current_ts, len(pages) * 1.5)
                 time_per_page = available_time / len(pages)
 
