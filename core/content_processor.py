@@ -1,23 +1,21 @@
 import re
 
 class ContentProcessor:
-    # Strict mapping to the 8 slots in your LCDEngine.CUSTOM_CHARS
     # 0: Music, 1: Heart, 2: Broken Heart, 3: Star, 4: Play, 5: Pause, 6: Bell, 7: Fire
-    MAP = [
-        (r"\b(love|heart|kiss|baby|sweet|adore)\b", "\x01", "ROMANTIC"),
-        (r"\b(fire|burn|hot|lit|flame|wild|beast|power)\b", "\x07", "HYPE"),
-        (r"\b(star|night|shine|sky|glow|light|dream)\b", "\x03", "CHILL"),
-        (r"\b(break|hurt|sad|cry|alone|pain|tear|dead|ghost)\b", "\x02", "SAD"),
-        (r"\b(sing|song|music|dance|party|voice|talk)\b", "\x00", "MUSICAL"),
+    RULES = [
+        (r"\b(love|heart|kiss|baby|sweet|adore|mine)\b", 1, "ROMANTIC"),
+        (r"\b(fire|burn|hot|lit|flame|wild|beast|power|rock)\b", 7, "HYPE"),
+        (r"\b(star|night|shine|sky|glow|light|dream|moon)\b", 3, "CHILL"),
+        (r"\b(break|hurt|sad|cry|alone|pain|tear|dead|ghost|dark)\b", 2, "SAD"),
+        (r"\b(sing|song|music|dance|party|voice|talk|listen)\b", 0, "MUSICAL"),
     ]
 
     @classmethod
     def analyze(cls, text: str):
-        """Returns (icon_char, mood_label) based on text content."""
         clean = text.lower()
-        for pattern, icon, label in cls.MAP:
+        for pattern, index, label in cls.RULES:
             if re.search(pattern, clean):
-                return icon, label
+                return chr(index), label
         return "", "NEUTRAL"
 
     @classmethod
@@ -29,12 +27,15 @@ class ContentProcessor:
 
     @classmethod
     def process_line(cls, text: str) -> str:
-        """Injects hardware icon index if a match is found."""
-        if not text or text.startswith(("\x00","\x01","\x02","\x03","\x04","\x05","\x06","\x07")):
+        """Injects a single hardware character if match is found."""
+        if not text: return ""
+        
+        # Check if line already starts with a hardware code (0-7)
+        if ord(text[0]) < 8:
             return text
         
-        icon, _ = cls.analyze(text)
-        if icon:
-            # Prepend icon. Ensure it doesn't push text past 16 chars.
-            return f"{icon}{text.strip()}"[:16]
+        icon_char, _ = cls.analyze(text)
+        if icon_char:
+            # Prepend the 1-column icon. 
+            return f"{icon_char}{text.strip()}"[:16]
         return text

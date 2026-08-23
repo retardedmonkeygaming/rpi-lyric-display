@@ -5,6 +5,31 @@ from core.content_processor import ContentProcessor
 web_bp = Blueprint("web", __name__)
 db = DatabaseManager()
 
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+@web_bp.route("/api/songs/<int:song_id>/auto-emoji-lines", methods=["POST"])
+def auto_emoji_lines(song_id: int):
+    # 1. Fetch current lyrics
+    lyrics = db.get_song_lyrics(song_id)
+    if not lyrics:
+        return jsonify({"status": "error", "message": "No lyrics found"}), 400
+
+    # 2. Process each line to add hardware icons
+    new_data = []
+    for ts, l1, l2 in lyrics:
+        processed_l1 = ContentProcessor.process_line(l1)
+        # We only apply emoji to the first line to save space
+        new_data.append((ts, processed_l1, l2))
+    
+    # 3. Save to Database
+    success = db.bulk_update_lyrics(song_id, new_data)
+    
+    if success:
+        return jsonify({"status": "success", "count": len(new_data)})
+    else:
+        return jsonify({"status": "error", "message": "Database write failed"}), 500
+
 
 @web_bp.route("/api/songs/<int:song_id>/auto-emoji-lines", methods=["POST"])
 def auto_emoji_lines(song_id: int):

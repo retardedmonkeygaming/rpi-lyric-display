@@ -1,6 +1,5 @@
 import sqlite3
 import os
-import time
 from config import DB_PATH
 
 class DatabaseManager:
@@ -35,22 +34,25 @@ class DatabaseManager:
             return [(row[0], row[1], row[2]) for row in cursor.fetchall()]
 
     def bulk_update_lyrics(self, song_id: int, lyric_data: list):
-        """lyric_data: list of (timestamp, line1, line2)"""
-        with self.get_connection() as conn:
-            conn.execute("DELETE FROM song_lyrics WHERE song_id = ?", (song_id,))
-            conn.executemany(
+        """Clears and re-inserts lyric lines for a song."""
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM song_lyrics WHERE song_id = ?", (song_id,))
+            cursor.executemany(
                 "INSERT INTO song_lyrics (song_id, timestamp_sec, line1, line2) VALUES (?, ?, ?, ?)",
                 [(song_id, ts, l1, l2) for ts, l1, l2 in lyric_data]
             )
             conn.commit()
-
-    def add_song(self, title, artist, lyrics):
-        with self.get_connection() as conn:
-            cursor = conn.execute("INSERT INTO songs (title, artist) VALUES (?, ?)", (title, artist))
-            sid = cursor.lastrowid
-            self.bulk_update_lyrics(sid, lyrics)
-            return sid
+            return True
+        except Exception as e:
+            print(f"DB Error: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
 
     def increment_play_count(self, song_id):
         with self.get_connection() as conn:
             conn.execute("UPDATE songs SET play_count = play_count + 1 WHERE id = ?", (song_id,))
+            conn.commit()
