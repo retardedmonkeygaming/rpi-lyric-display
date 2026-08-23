@@ -1,30 +1,24 @@
 import re
-from typing import Tuple
 
 class ContentProcessor:
-    """Strict Hardware-Only Emoji Mapping for 1602A LCD."""
-
-    # These hex codes match the CUSTOM_CHARS indices (0-7) in LCDEngine
-    LCD_ICONS = {
-        "music": "\x00", 
-        "heart": "\x01", 
-        "broken_heart": "\x02",
-        "star": "\x03", 
-        "play": "\x04", 
-        "pause": "\x05",
-        "bell": "\x06", 
-        "fire": "\x07"
-    }
-
-    # Keyword rules for auto-injection
-    RULES = [
-        (['love', 'heart', 'kiss', 'baby', 'yours', 'sweet'], LCD_ICONS["heart"]),
-        (['fire', 'burn', 'hot', 'lit', 'flame', 'wild'], LCD_ICONS["fire"]),
-        (['happy', 'smile', 'joy', 'shine', 'star', 'light'], LCD_ICONS["star"]),
-        (['sad', 'cry', 'rain', 'dark', 'alone', 'tear', 'pain', 'broken'], LCD_ICONS["broken_heart"]),
-        (['night', 'moon', 'dream', 'sleep'], LCD_ICONS["star"]),
-        (['sing', 'song', 'voice', 'call', 'talk', 'music', 'dance'], LCD_ICONS["music"]),
+    # Strict mapping to the 8 slots in your LCDEngine.CUSTOM_CHARS
+    # 0: Music, 1: Heart, 2: Broken Heart, 3: Star, 4: Play, 5: Pause, 6: Bell, 7: Fire
+    MAP = [
+        (r"\b(love|heart|kiss|baby|sweet|adore)\b", "\x01", "ROMANTIC"),
+        (r"\b(fire|burn|hot|lit|flame|wild|beast|power)\b", "\x07", "HYPE"),
+        (r"\b(star|night|shine|sky|glow|light|dream)\b", "\x03", "CHILL"),
+        (r"\b(break|hurt|sad|cry|alone|pain|tear|dead|ghost)\b", "\x02", "SAD"),
+        (r"\b(sing|song|music|dance|party|voice|talk)\b", "\x00", "MUSICAL"),
     ]
+
+    @classmethod
+    def analyze(cls, text: str):
+        """Returns (icon_char, mood_label) based on text content."""
+        clean = text.lower()
+        for pattern, icon, label in cls.MAP:
+            if re.search(pattern, clean):
+                return icon, label
+        return "", "NEUTRAL"
 
     @classmethod
     def apply_alignment(cls, text: str, align: str = "center", width: int = 16) -> str:
@@ -34,24 +28,13 @@ class ContentProcessor:
         return text.ljust(width)
 
     @classmethod
-    def pick_icon_for_text(cls, text: str) -> str:
-        """Returns the specific hardware index character for a line."""
-        clean_text = text.lower()
-        for keywords, icon_char in cls.RULES:
-            if any(kw in clean_text for kw in keywords):
-                return icon_char
-        return "" # No icon if no match
-    
-    @classmethod
-    def process_line_with_icon(cls, text: str) -> str:
-        """Prepends a 1-column hardware icon if keywords match and space allows."""
-        icon = cls.pick_icon_for_text(text)
-        if not icon: return text
-        
-        # If the line already starts with a custom char index, don't double up
-        if text.startswith(tuple(cls.LCD_ICONS.values())):
+    def process_line(cls, text: str) -> str:
+        """Injects hardware icon index if a match is found."""
+        if not text or text.startswith(("\x00","\x01","\x02","\x03","\x04","\x05","\x06","\x07")):
             return text
-            
-        # Ensure we don't exceed 16 chars
-        combined = f"{icon}{text.strip()}"
-        return combined[:16]
+        
+        icon, _ = cls.analyze(text)
+        if icon:
+            # Prepend icon. Ensure it doesn't push text past 16 chars.
+            return f"{icon}{text.strip()}"[:16]
+        return text

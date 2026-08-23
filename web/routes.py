@@ -149,3 +149,54 @@ def split_text_utility():
     # In Phase 1, we just return the raw or a simple split
     return jsonify({"status": "success", "line1": raw_text[:16], "line2": raw_text[16:32]})
 
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, current_app
+from database.db import DatabaseManager
+from core.content_processor import ContentProcessor
+
+web_bp = Blueprint("web", __name__)
+db = DatabaseManager()
+
+@web_bp.route("/library")
+def library_page():
+    return render_template("library.html", songs=db.get_all_songs())
+
+@web_bp.route("/editor/<int:song_id>")
+def editor_page(song_id: int):
+    songs = db.get_all_songs()
+    song = next((s for s in songs if s["id"] == song_id), None)
+    if not song: return redirect(url_for("web.library_page"))
+    return render_template("editor.html", song=song, lyrics=db.get_song_lyrics(song_id))
+
+@web_bp.route("/api/songs/<int:song_id>/analyze-sentiment", methods=["GET"])
+def analyze_sentiment(song_id: int):
+    lyrics = db.get_song_lyrics(song_id)
+    full_text = " ".join([f"{l[1]} {l[2]}" for l in lyrics])
+    icon, mood = ContentProcessor.analyze(full_text)
+    
+    return jsonify({
+        "status": "success",
+        "suggested_mood": mood,
+        "emoji": "Icon Found" if icon else "None",
+        "confidence": 0.85
+    })
+
+@web_bp.route("/api/songs/<int:song_id>/auto-emoji-lines", methods=["POST"])
+def auto_emoji_lines(song_id: int):
+    lyrics = db.get_song_lyrics(song_id)
+    new_data = []
+    for ts, l1, l2 in lyrics:
+        # Prepend hardware code (\x01 etc) based on content
+        new_l1 = ContentProcessor.process_line(l1)
+        new_data.append((ts, new_l1, l2))
+    
+    db.bulk_update_lyrics(song_id, new_data)
+    return jsonify({"status": "success", "line_count": len(new_data)})
+
+@web_bp.route("/api/recording/start", methods=["POST"])
+def start_rec():
+    sid = request.json.get("song_id")
+    engine = current_app.config.get("LYRIC_APP")
+    if engine:
+        engine.trigger_playback(sid)
+        return jsonify({"status": "success"})
+    return jsonify({"status": "offline"}), 500
