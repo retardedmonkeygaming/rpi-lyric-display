@@ -41,7 +41,7 @@ class ContentProcessor:
             if any(kw in clean_text for kw in keywords):
                 return icon_char
         return "" # No icon if no match
-
+    
     @classmethod
     def process_line_with_icon(cls, text: str) -> str:
         """Prepends a 1-column hardware icon if keywords match and space allows."""
